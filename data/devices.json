@@ -1,0 +1,11 @@
+{
+  "devices": [
+    {
+      "mac": "B8:14:4D:6D:6D:A9",
+      "passkey": "796389",
+      "timestamp": "2026-01-29T20:04:25.534009",
+      "name": "Oliver",
+      "sound_file": "oliver.wav"
+    }
+  ]
+}
