@@ -1,0 +1,10 @@
+# Database
+data/devices.db
+
+# Python
+*__pycache__/
+*venv/
+
+# OS
+.DS_Store
+Thumbs.db
