@@ -40,10 +40,16 @@ echo "Starting main detection system..."
 "$PYTHON" src/main.py &
 MAIN_PID=$!
 
+# Start GitHub sync service
+echo "Starting GitHub sync service..."
+"$PYTHON" src/github_sync.py &
+SYNC_PID=$!
+
 echo ""
 echo "All services running"
 echo "  - Bluetooth pairing service (PID: $BT_PID)"
 echo "  - Main system (PID: $MAIN_PID)"
+echo "  - GitHub sync service (PID: $SYNC_PID)"
 echo ""
 echo "Press Ctrl+C to stop all services"
 echo ""
@@ -54,6 +60,7 @@ cleanup() {
     echo "Stopping all services..."
     sudo kill $BT_PID 2>/dev/null || true
     kill $MAIN_PID 2>/dev/null || true
+    kill $SYNC_PID 2>/dev/null || true
     echo "All services stopped"
     exit 0
 }

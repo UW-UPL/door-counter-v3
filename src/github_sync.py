@@ -96,7 +96,7 @@ def git_push():
 
         # Commit
         subprocess.run(
-            ["git", "commit", "-m", "Update pending devices"],
+            ["git", "commit", "-m", f"Update pending devices ({datetime.now().strftime('%b %d, %I:%M %p')})"],
             check=True,
             timeout=10
         )
@@ -114,7 +114,6 @@ def git_push():
 
 
 def sync_cycle():
-    """Run one sync cycle."""
     print(f"\n[{datetime.now().strftime('%H:%M:%S')}] Starting sync cycle...")
 
     # Pull latest (gets new registrations)
