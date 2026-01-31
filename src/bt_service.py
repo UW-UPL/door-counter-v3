@@ -2,7 +2,7 @@ import dbus
 import dbus.service
 import dbus.mainloop.glib
 from gi.repository import GLib
-from device_manager import store_device
+from device_manager import add_pending_device
 
 AGENT_INTERFACE = "org.bluez.Agent1"
 AGENT_PATH = "/upl/agent"
@@ -56,7 +56,7 @@ class UPLAgent(dbus.service.Object):
     @dbus.service.method(AGENT_INTERFACE, in_signature="os", out_signature="")
     def RequestConfirmation(self, device, passkey):
         mac = self._extract_mac(device)
-        store_device(mac, str(passkey))
+        add_pending_device(mac, str(passkey))
         self._accept_and_watch(device)
 
         print(f"\nNEW DEVICE PAIRED:")

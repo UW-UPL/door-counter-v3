@@ -3,7 +3,7 @@ from collections import defaultdict, deque
 from datetime import datetime
 from typing import Dict, Optional, Callable
 from bleak import BleakScanner
-from device_manager import load_tracked_macs, get_device_by_mac
+from device_manager import get_tracked_devices, get_device_by_mac
 
 
 class BLEDetective:
@@ -83,10 +83,11 @@ class BLEScanner:
 
         def callback(device, advertisement_data):
             # Linux kernel resolves rotating MACs to Identity MAC for us
-            target_macs = load_tracked_macs()
-            if not target_macs:
+            tracked = get_tracked_devices()
+            if not tracked:
                 return
 
+            target_macs = {d['mac'] for d in tracked}
             if device.address.upper() in target_macs:
                 rssi = advertisement_data.rssi
                 self.detective.update_rssi(device.address, rssi)

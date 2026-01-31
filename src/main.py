@@ -3,7 +3,7 @@ import signal
 import yaml
 from ble_scanner import BLEDetective, BLEScanner
 from audio_player import AudioPlayer
-from device_manager import load_tracked_macs, get_device_by_mac
+from device_manager import get_tracked_devices, get_device_by_mac
 
 
 class UPLJingleSystem:
@@ -46,13 +46,11 @@ class UPLJingleSystem:
         print("="*50 + "\n")
 
         # Show tracked devices
-        tracked_macs = load_tracked_macs()
-        if tracked_macs:
-            print(f"Tracking {len(tracked_macs)} opted-in device(s):")
-            for mac in tracked_macs:
-                device = get_device_by_mac(mac)
-                if device:
-                    print(f"  - {device.get('name', 'Unknown')} ({mac})")
+        tracked_devices = get_tracked_devices()
+        if tracked_devices:
+            print(f"Tracking {len(tracked_devices)} opted-in device(s):")
+            for device in tracked_devices:
+                print(f"  - {device['name']} ({device['mac']})")
             print()
         else:
             print("No opted-in devices to track (need name + sound_file set)\n")
