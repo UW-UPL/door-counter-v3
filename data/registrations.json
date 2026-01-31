@@ -1,3 +1,10 @@
 {
-  "registrations": []
+  "registrations": [
+    {
+      "passkey": "697085",
+      "paired_at": "2026-01-31T15:59:36.516522",
+      "name": "Nick",
+      "sound_file": "oliver.wav"
+    }
+  ]
 }
