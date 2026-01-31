@@ -87,10 +87,13 @@ class BLEScanner:
             if not tracked:
                 return
 
-            target_macs = {d['mac'] for d in tracked}
-            if device.address.upper() in target_macs:
+            tracked_by_mac = {d['mac']: d for d in tracked}
+            mac = device.address.upper()
+            if mac in tracked_by_mac:
                 rssi = advertisement_data.rssi
-                self.detective.update_rssi(device.address, rssi)
+                name = tracked_by_mac[mac].get('name', mac)
+                print(f"[{name}] RSSI: {rssi} dBm")
+                self.detective.update_rssi(mac, rssi)
 
         async with BleakScanner(callback) as scanner:
             print("BLE scanner active - tracking devices")
