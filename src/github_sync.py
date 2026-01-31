@@ -4,8 +4,8 @@ GitHub Sync Service
 
 Runs every 20 seconds:
 1. Exports pending devices (last 10 min) to data/pending.json
-2. Pulls latest claims.json from GitHub
-3. Merges any matched claims into the DB
+2. Pulls latest registrations.json from GitHub
+3. Merges any matched registrations into the DB
 4. Pushes updated pending.json to GitHub
 """
 
@@ -17,50 +17,42 @@ from datetime import datetime
 from device_manager import get_pending_devices, complete_device
 
 PENDING_JSON = "./data/pending.json"
-CLAIMS_JSON = "./data/claims.json"
+REGISTRATIONS = "./data/registrations.json"
 SYNC_INTERVAL = 20  # seconds
 PENDING_WINDOW = 10  # minutes
 
-
 def export_pending():
-    """Export pending devices to JSON for GitHub."""
     pending = get_pending_devices(minutes=PENDING_WINDOW)
 
     os.makedirs(os.path.dirname(PENDING_JSON), exist_ok=True)
     with open(PENDING_JSON, 'w') as f:
-        json.dump({
-            "exported_at": datetime.now().isoformat(),
-            "window_minutes": PENDING_WINDOW,
-            "pending": pending
-        }, f, indent=2)
+        json.dump(pending, f, indent=2)
 
     return len(pending)
 
 
-def load_claims() -> list:
-    """Load claims from claims.json."""
-    if not os.path.exists(CLAIMS_JSON):
+def load_registrations() -> list:
+    if not os.path.exists(REGISTRATIONS):
         return []
 
-    with open(CLAIMS_JSON, 'r') as f:
+    with open(REGISTRATIONS, 'r') as f:
         data = json.load(f)
 
-    return data.get("claims", [])
+    return data.get("registrations", [])
 
 
-def process_claims():
-    """Match claims against DB and complete devices."""
-    claims = load_claims()
+def process_registrations():
+    registrations = load_registrations()
     processed = 0
 
-    for claim in claims:
-        passkey = claim.get("passkey")
-        paired_at = claim.get("paired_at")
-        name = claim.get("name")
-        sound_file = claim.get("sound_file")
+    for reg in registrations:
+        passkey = reg.get("passkey")
+        paired_at = reg.get("paired_at")
+        name = reg.get("name")
+        sound_file = reg.get("sound_file")
 
         if not all([passkey, paired_at, name, sound_file]):
-            print(f"Skipping incomplete claim: {claim}")
+            print(f"Skipping incomplete registration: {reg}")
             continue
 
         if complete_device(passkey, paired_at, name, sound_file):
@@ -71,7 +63,6 @@ def process_claims():
 
 
 def git_pull():
-    """Pull latest from GitHub."""
     try:
         result = subprocess.run(
             ["git", "pull", "--rebase"],
@@ -89,7 +80,6 @@ def git_pull():
 
 
 def git_push():
-    """Commit and push pending.json to GitHub."""
     try:
         # Stage pending.json
         subprocess.run(["git", "add", PENDING_JSON], check=True, timeout=10)
@@ -127,12 +117,12 @@ def sync_cycle():
     """Run one sync cycle."""
     print(f"\n[{datetime.now().strftime('%H:%M:%S')}] Starting sync cycle...")
 
-    # Pull latest (gets new claims)
+    # Pull latest (gets new registrations)
     if git_pull():
-        # Process any new claims
-        processed = process_claims()
+        # Process any new registrations
+        processed = process_registrations()
         if processed:
-            print(f"Processed {processed} claim(s)")
+            print(f"Processed {processed} registration(s)")
 
     # Export current pending devices
     count = export_pending()
@@ -147,7 +137,7 @@ def main():
     print(f"  Sync interval: {SYNC_INTERVAL}s")
     print(f"  Pending window: {PENDING_WINDOW} minutes")
     print(f"  Pending file: {PENDING_JSON}")
-    print(f"  Claims file: {CLAIMS_JSON}")
+    print(f"  Registrations file: {REGISTRATIONS}")
 
     while True:
         try:

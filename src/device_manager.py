@@ -81,6 +81,7 @@ def get_device_by_mac(mac_address: str) -> Optional[Dict]:
         FROM devices WHERE mac = ?
     """, (mac_address.upper(),))
     row = cursor.fetchone()
+
     return dict(row) if row else None
 
 
@@ -93,14 +94,11 @@ def get_pending_devices(minutes: int = 10) -> List[Dict]:
         WHERE name IS NULL
         AND paired_at > datetime('now', ? || ' minutes')
     """, (f"-{minutes}",))
+    
     return [dict(row) for row in cursor.fetchall()]
 
 # turns a device from pending -> tracked
 def complete_device(passkey: str, paired_at: str, name: str, sound_file: str) -> bool:
-    """
-    Complete a device entry by matching passkey + paired_at.
-    Returns True if a device was found and updated.
-    """
     conn = _get_connection()
     cursor = conn.execute("""
         UPDATE devices
@@ -108,6 +106,7 @@ def complete_device(passkey: str, paired_at: str, name: str, sound_file: str) ->
         WHERE passkey = ? AND paired_at = ? AND name IS NULL
     """, (name, sound_file, datetime.now().isoformat(), passkey, paired_at))
     conn.commit()
+    
     return cursor.rowcount > 0
 
 # returns pending OR tracked devices (entire db table)
@@ -117,4 +116,5 @@ def get_all_devices() -> List[Dict]:
         SELECT mac, passkey, paired_at, name, sound_file, completed_at
         FROM devices
     """)
+    
     return [dict(row) for row in cursor.fetchall()]
