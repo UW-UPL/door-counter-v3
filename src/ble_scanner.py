@@ -10,21 +10,19 @@ class BLEScanner:
         self.running = False
         self.tracked_by_mac = {}
 
-    async def _refresh_cache(self):
+    async def refresh_cache(self):
         """Periodically refresh the tracked devices cache."""
+
         while self.running:
             tracked = get_tracked_devices()
             self.tracked_by_mac = {d['mac']: d for d in tracked}
+
             await asyncio.sleep(CACHE_REFRESH_INTERVAL)
 
     async def start(self):
         self.running = True
         print("Starting BLE scanner...")
-
-        # Initial cache load
-        tracked = get_tracked_devices()
-        self.tracked_by_mac = {d['mac']: d for d in tracked}
-
+        
         def callback(device, advertisement_data):
             mac = device.address.upper()
             if mac in self.tracked_by_mac:
@@ -33,7 +31,7 @@ class BLEScanner:
                 print(f"[{name}] RSSI: {rssi} dBm")
 
         # Start cache refresh task
-        refresh_task = asyncio.create_task(self._refresh_cache())
+        refresh_task = asyncio.create_task(self.refresh_cache())
 
         async with BleakScanner(callback) as scanner:
             print("BLE scanner active - tracking devices")
