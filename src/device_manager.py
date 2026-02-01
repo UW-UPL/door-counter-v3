@@ -1,7 +1,7 @@
 import sqlite3
 import os
 from datetime import datetime
-from typing import List, Dict, Optional
+from typing import List, Dict
 import threading
 
 #   There is a devices sqlite database, pending.json, and registration.json 
@@ -47,8 +47,9 @@ def _init_db(conn: sqlite3.Connection):
 
     conn.commit()
 
-# stores a newly paired device
 def add_pending_device(mac_address: str, passkey: str):
+    """stores a newly paired device"""
+
     conn = _get_connection()
     now = datetime.now().isoformat()
 
@@ -62,8 +63,9 @@ def add_pending_device(mac_address: str, passkey: str):
 
     conn.commit()
 
-# returns tracked devices
 def get_tracked_devices() -> List[Dict]:
+    """returns tracked devices"""
+
     conn = _get_connection()
     cursor = conn.execute("""
         SELECT mac, name, sound_file FROM devices
@@ -72,21 +74,8 @@ def get_tracked_devices() -> List[Dict]:
 
     return [dict(row) for row in cursor.fetchall()]
 
-# returns a device by mac address if the device is pending or tracked
-# otherwise returns none
-def get_device_by_mac(mac_address: str) -> Optional[Dict]:
-    conn = _get_connection()
-    cursor = conn.execute("""
-        SELECT mac, passkey, paired_at, name, sound_file, completed_at
-        FROM devices WHERE mac = ?
-    """, (mac_address.upper(),))
-    row = cursor.fetchone()
-
-    return dict(row) if row else None
-
-
-# get pending devices (within the last n minutes)
 def get_pending_devices(minutes: int = 10) -> List[Dict]:
+    """get pending devices (within the last n minutes)"""
     conn = _get_connection()
     cursor = conn.execute("""
         SELECT passkey, paired_at
@@ -97,8 +86,8 @@ def get_pending_devices(minutes: int = 10) -> List[Dict]:
     
     return [dict(row) for row in cursor.fetchall()]
 
-# turns a device from pending -> tracked
 def complete_device(passkey: str, paired_at: str, name: str, sound_file: str) -> bool:
+    """turns a device from pending -> tracked"""
     conn = _get_connection()
     cursor = conn.execute("""
         UPDATE devices
@@ -109,12 +98,3 @@ def complete_device(passkey: str, paired_at: str, name: str, sound_file: str) ->
     
     return cursor.rowcount > 0
 
-# returns pending OR tracked devices (entire db table)
-def get_all_devices() -> List[Dict]:
-    conn = _get_connection()
-    cursor = conn.execute("""
-        SELECT mac, passkey, paired_at, name, sound_file, completed_at
-        FROM devices
-    """)
-    
-    return [dict(row) for row in cursor.fetchall()]

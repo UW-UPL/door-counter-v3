@@ -4,6 +4,7 @@ data/devices.db
 # Python
 *__pycache__/
 *venv/
+.pylintrc
 
 # OS
 .DS_Store
