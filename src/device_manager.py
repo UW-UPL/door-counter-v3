@@ -41,6 +41,7 @@ def _init_db(conn: sqlite3.Connection):
             paired_at DATETIME NOT NULL,
             name TEXT,
             sound_file TEXT,
+            show_location INTEGER DEFAULT 0,
             completed_at DATETIME
         )
     """)
@@ -66,7 +67,7 @@ def add_pending_device(mac_address: str, passkey: str):
 def get_tracked_devices() -> List[Dict]:
     conn = _get_connection()
     cursor = conn.execute("""
-        SELECT mac, name, sound_file FROM devices
+        SELECT mac, name, sound_file, show_location FROM devices
         WHERE name IS NOT NULL AND sound_file IS NOT NULL
     """)
 
@@ -77,7 +78,7 @@ def get_tracked_devices() -> List[Dict]:
 def get_device_by_mac(mac_address: str) -> Optional[Dict]:
     conn = _get_connection()
     cursor = conn.execute("""
-        SELECT mac, passkey, paired_at, name, sound_file, completed_at
+        SELECT mac, passkey, paired_at, name, sound_file, show_location, completed_at
         FROM devices WHERE mac = ?
     """, (mac_address.upper(),))
     row = cursor.fetchone()
@@ -98,23 +99,23 @@ def get_pending_devices(minutes: int = 10) -> List[Dict]:
     return [dict(row) for row in cursor.fetchall()]
 
 # turns a device from pending -> tracked
-def complete_device(passkey: str, paired_at: str, name: str, sound_file: str) -> bool:
+def complete_device(passkey: str, paired_at: str, name: str, sound_file: str, show_location: bool = False) -> bool:
     conn = _get_connection()
     cursor = conn.execute("""
         UPDATE devices
-        SET name = ?, sound_file = ?, completed_at = ?
+        SET name = ?, sound_file = ?, show_location = ?, completed_at = ?
         WHERE passkey = ? AND paired_at = ? AND name IS NULL
-    """, (name, sound_file, datetime.now().isoformat(), passkey, paired_at))
+    """, (name, sound_file, 1 if show_location else 0, datetime.now().isoformat(), passkey, paired_at))
     conn.commit()
-    
+
     return cursor.rowcount > 0
 
 # returns pending OR tracked devices (entire db table)
 def get_all_devices() -> List[Dict]:
     conn = _get_connection()
     cursor = conn.execute("""
-        SELECT mac, passkey, paired_at, name, sound_file, completed_at
+        SELECT mac, passkey, paired_at, name, sound_file, show_location, completed_at
         FROM devices
     """)
-    
+
     return [dict(row) for row in cursor.fetchall()]

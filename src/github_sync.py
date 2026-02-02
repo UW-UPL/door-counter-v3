@@ -50,12 +50,13 @@ def process_registrations():
         paired_at = reg.get("paired_at")
         name = reg.get("name")
         sound_file = reg.get("sound_file")
+        show_location = reg.get("show_location", False)  # defaults to False
 
         if not all([passkey, paired_at, name, sound_file]):
             print(f"Skipping incomplete registration: {reg}")
             continue
 
-        if complete_device(passkey, paired_at, name, sound_file):
+        if complete_device(passkey, paired_at, name, sound_file, show_location):
             print(f"Completed device: {name} ({passkey})")
             processed += 1
 
