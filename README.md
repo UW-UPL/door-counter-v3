@@ -1,4 +1,4 @@
-# ble-counter
+# Door Counter V3!
 
 1. Pair with the ble counter (remember the pairing passkey!)
 2. Within the next 10 minutes, find your pairing passkey in pending.json
