@@ -58,7 +58,8 @@ export async function POST({ request }) {
             }
         });
 
-        // Step 4: Get the current registrations.json file
+        // Get the current registrations.json file
+        // If it doesn't exist, return an error
         let existingContent = { registrations: [] };
         let existingSha = null;
 
@@ -69,8 +70,10 @@ export async function POST({ request }) {
             existingContent = JSON.parse(Buffer.from(fileData.content, 'base64').toString());
         
         } catch (error) {
-            console.log(error);
-            // Probably because the registration file doesn't exist, just append to an empty list
+           return json({
+            success: false,
+            error: "Registration file not found"
+           }, { status: 404 })
         }
 
         // Add new registration
@@ -120,6 +123,7 @@ export async function POST({ request }) {
     } catch (error) {
         console.error('Registration error:', error);
         return json({
+            success: false,
             error: error.message
         }, { status: 500 });
     }
