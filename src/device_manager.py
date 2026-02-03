@@ -71,7 +71,7 @@ def get_tracked_devices() -> List[Dict]:
     conn = _get_connection()
     cursor = conn.execute("""
         SELECT mac, name, sound_file, share_presence FROM devices
-        WHERE name IS NOT NULL AND sound_file IS NOT NULL
+        WHERE name IS NOT NULL
     """)
 
     return [dict(row) for row in cursor.fetchall()]
@@ -88,7 +88,7 @@ def get_pending_devices(minutes: int = 10) -> List[Dict]:
     
     return [dict(row) for row in cursor.fetchall()]
 
-def complete_device(passkey: str, paired_at: str, name: str, sound_file: str, share_presence: bool) -> bool:
+def complete_device(passkey: str, paired_at: str, name: str, sound_file: str | None, share_presence: bool) -> bool:
     """turns a device from pending -> tracked"""
     if share_presence is True:
         sp = 1 

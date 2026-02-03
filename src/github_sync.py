@@ -49,10 +49,10 @@ def process_registrations():
         passkey = reg.get("passkey")
         paired_at = reg.get("paired_at")
         name = reg.get("name")
-        sound_file = reg.get("sound_file")
-        share_presence = reg.get("share_presence")
-        
-        if not all([passkey, paired_at, name, sound_file]):
+        sound_file = reg.get("sound_file", None)
+        share_presence = reg.get("share_presence", False)
+
+        if not all([passkey, paired_at, name]):
             print(f"Skipping incomplete registration: {reg}")
             continue
 
