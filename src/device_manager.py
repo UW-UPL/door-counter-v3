@@ -1,7 +1,7 @@
 import sqlite3
 import os
 from datetime import datetime
-from typing import List, Dict, Optional
+from typing import List, Dict
 import threading
 
 #   There is a devices sqlite database, pending.json, and registration.json 
@@ -40,15 +40,18 @@ def _init_db(conn: sqlite3.Connection):
             passkey TEXT NOT NULL,
             paired_at DATETIME NOT NULL,
             name TEXT,
+            share_presence INTEGER DEFAULT 0,
             sound_file TEXT,
+            show_location INTEGER DEFAULT 0,
             completed_at DATETIME
         )
-    """)
+    """) # goofy ahh sqlite doesn't have boolean types
 
     conn.commit()
 
-# stores a newly paired device
 def add_pending_device(mac_address: str, passkey: str):
+    """stores a newly paired device"""
+
     conn = _get_connection()
     now = datetime.now().isoformat()
 
@@ -62,8 +65,9 @@ def add_pending_device(mac_address: str, passkey: str):
 
     conn.commit()
 
-# returns tracked devices
 def get_tracked_devices() -> List[Dict]:
+    """returns tracked devices"""
+
     conn = _get_connection()
     cursor = conn.execute("""
         SELECT mac, name, sound_file, share_presence FROM devices
@@ -72,21 +76,8 @@ def get_tracked_devices() -> List[Dict]:
 
     return [dict(row) for row in cursor.fetchall()]
 
-# returns a device by mac address if the device is pending or tracked
-# otherwise returns none
-def get_device_by_mac(mac_address: str) -> Optional[Dict]:
-    conn = _get_connection()
-    cursor = conn.execute("""
-        SELECT mac, passkey, paired_at, name, sound_file, completed_at
-        FROM devices WHERE mac = ?
-    """, (mac_address.upper(),))
-    row = cursor.fetchone()
-
-    return dict(row) if row else None
-
-
-# get pending devices (within the last n minutes)
 def get_pending_devices(minutes: int = 10) -> List[Dict]:
+    """get pending devices (within the last n minutes)"""
     conn = _get_connection()
     cursor = conn.execute("""
         SELECT passkey, paired_at
@@ -107,19 +98,10 @@ def complete_device(passkey: str, paired_at: str, name: str, sound_file: str | N
     conn = _get_connection()
     cursor = conn.execute("""
         UPDATE devices
-        SET name = ?, sound_file = ?, completed_at = ?
+        SET name = ?, sound_file = ?, completed_at = ?, share_presence = ?
         WHERE passkey = ? AND paired_at = ? AND name IS NULL
-    """, (name, sound_file, datetime.now().isoformat(), passkey, paired_at))
+    """, (name, sound_file, datetime.now().isoformat(), sp, passkey, paired_at))
     conn.commit()
-    
+
     return cursor.rowcount > 0
 
-# returns pending OR tracked devices (entire db table)
-def get_all_devices() -> List[Dict]:
-    conn = _get_connection()
-    cursor = conn.execute("""
-        SELECT mac, passkey, paired_at, name, sound_file, completed_at
-        FROM devices
-    """)
-    
-    return [dict(row) for row in cursor.fetchall()]
