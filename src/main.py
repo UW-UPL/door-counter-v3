@@ -1,9 +1,9 @@
 import asyncio
 import signal
 import yaml
-from ble_scanner import BLEDetective, BLEScanner
+from ble_scanner import BLEScanner
 from audio_player import AudioPlayer
-from device_manager import get_tracked_devices, get_device_by_mac
+from device_manager import get_tracked_devices
 
 
 class UPLJingleSystem:
@@ -16,27 +16,8 @@ class UPLJingleSystem:
             custom_sounds_dir=self.config.get('audio', {}).get('custom_sounds_dir', './sounds/custom')
         )
 
-        self.ble_detective = BLEDetective(
-            rssi_window_size=self.config.get('ble', {}).get('rssi_window_size', 10),
-            spike_threshold=self.config.get('ble', {}).get('spike_threshold', 15),
-            entry_cooldown=self.config.get('ble', {}).get('entry_cooldown', 300)
-        )
-
-        self.ble_scanner = BLEScanner(self.ble_detective)
-
-        # Wire up callback
-        self.ble_detective.set_entry_callback(self._on_entry_detected)
-
+        self.ble_scanner = BLEScanner()
         self.running = False
-
-    def _on_entry_detected(self, mac: str, device: dict):
-        if device and device.get("name"):
-            print(f"Identified: {device['name']}")
-        else:
-            print(f"Identified: {mac}")
-
-        # TODO: Only play when ToF sensor confirms door entry
-        # self.audio_player.play_entry(device)
 
     async def run(self):
         self.running = True
