@@ -40,10 +40,11 @@ def _init_db(conn: sqlite3.Connection):
             passkey TEXT NOT NULL,
             paired_at DATETIME NOT NULL,
             name TEXT,
+            share_presence INTEGER DEFAULT 0,
             sound_file TEXT,
             completed_at DATETIME
         )
-    """)
+    """) # goofy ahh sqlite doesn't have boolean types
 
     conn.commit()
 
@@ -68,7 +69,7 @@ def get_tracked_devices() -> List[Dict]:
 
     conn = _get_connection()
     cursor = conn.execute("""
-        SELECT mac, name, sound_file FROM devices
+        SELECT mac, name, sound_file, share_presence FROM devices
         WHERE name IS NOT NULL AND sound_file IS NOT NULL
     """)
 
@@ -86,14 +87,19 @@ def get_pending_devices(minutes: int = 10) -> List[Dict]:
     
     return [dict(row) for row in cursor.fetchall()]
 
-def complete_device(passkey: str, paired_at: str, name: str, sound_file: str) -> bool:
+def complete_device(passkey: str, paired_at: str, name: str, sound_file: str, share_presence: bool) -> bool:
     """turns a device from pending -> tracked"""
+    if share_presence is True:
+        sp = 1 
+    else: 
+        sp = 0
+    
     conn = _get_connection()
     cursor = conn.execute("""
         UPDATE devices
-        SET name = ?, sound_file = ?, completed_at = ?
+        SET name = ?, sound_file = ?, completed_at = ?, share_presence = ?
         WHERE passkey = ? AND paired_at = ? AND name IS NULL
-    """, (name, sound_file, datetime.now().isoformat(), passkey, paired_at))
+    """, (name, sound_file, datetime.now().isoformat(), sp, passkey, paired_at))
     conn.commit()
     
     return cursor.rowcount > 0

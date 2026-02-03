@@ -16,13 +16,12 @@ class BLEScanner:
         while self.running:
             tracked = get_tracked_devices()
             self.tracked_by_mac = {d['mac']: d for d in tracked}
-
             await asyncio.sleep(CACHE_REFRESH_INTERVAL)
 
     async def start(self):
         self.running = True
         print("Starting BLE scanner...")
-        
+
         def callback(device, advertisement_data):
             mac = device.address.upper()
             if mac in self.tracked_by_mac:

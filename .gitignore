@@ -9,3 +9,6 @@ data/devices.db
 # OS
 .DS_Store
 Thumbs.db
+
+
+*.env
