@@ -1,0 +1,9 @@
+{
+	"/": [],
+	"/api/pending-devices": [
+		"src/routes/api/pending-devices/+server.js"
+	],
+	"/api/registrations": [
+		"src/routes/api/registrations/+server.js"
+	]
+}
