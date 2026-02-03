@@ -42,6 +42,7 @@ def _init_db(conn: sqlite3.Connection):
             name TEXT,
             share_presence INTEGER DEFAULT 0,
             sound_file TEXT,
+            show_location INTEGER DEFAULT 0,
             completed_at DATETIME
         )
     """) # goofy ahh sqlite doesn't have boolean types
@@ -101,6 +102,6 @@ def complete_device(passkey: str, paired_at: str, name: str, sound_file: str, sh
         WHERE passkey = ? AND paired_at = ? AND name IS NULL
     """, (name, sound_file, datetime.now().isoformat(), sp, passkey, paired_at))
     conn.commit()
-    
+
     return cursor.rowcount > 0
 
