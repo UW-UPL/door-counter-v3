@@ -62,7 +62,7 @@
 		status = 'Creating registration PR...';
 
 		try {
-			const response = await fetch('https://gregarious-cocada-36aa36.netlify.app/.netlify/functions/pending-devices/registrations', {
+			const response = await fetch('https://gregarious-cocada-36aa36.netlify.app/.netlify/functions/registrations', {
 				method: 'POST',
 				headers: {
 					'Content-Type': 'application/json'
