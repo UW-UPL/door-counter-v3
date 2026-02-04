@@ -13,11 +13,11 @@
 	let soundFile = '';
 	let sharePresence = false;
 
-	// Poll for new devices every 30 seconds
+	// Poll for new devices every 10 seconds
 	onMount(() => {
 		fetchPendingDevices();
 		
-		const interval = setInterval(fetchPendingDevices, 30000);
+		const interval = setInterval(fetchPendingDevices, 10000);
 
 		return () => clearInterval(interval);
 	});
@@ -97,15 +97,6 @@
 			loading = false;
 		}
 	}
-
-	// Manually refresh the device list
-	function refreshDevices() {
-		status = 'Refreshing device list';
-		fetchPendingDevices();
-		setTimeout(() => {
-			status = '';
-		}, 2000);
-	}
 </script>
 
 <svelte:head>
@@ -117,7 +108,6 @@
 
 	<div>
 		<h2>List of Pending Devices</h2>
-		<button on:click={refreshDevices} disabled={loading}>Refresh</button>
 
 		{#if pendingDevices.length > 0}
 			{#each pendingDevices as device}
