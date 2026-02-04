@@ -1,0 +1,10 @@
+{
+  "name": "door-counter-functions",
+  "version": "1.0.0",
+  "description": "Netlify Functions",
+  "scripts": {
+    "build": "echo 'No build step required for functions'"
+  },
+  "author": "",
+  "license": "MIT"
+}

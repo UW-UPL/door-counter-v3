@@ -7,6 +7,7 @@ exports.handler = async (event, context) => {
     const PUBLIC_REPO_OWNER = process.env.PUBLIC_REPO_OWNER;
     const PUBLIC_REPO_NAME = process.env.PUBLIC_REPO_NAME;
 
+    
     const headers = {
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Headers': 'Content-Type',

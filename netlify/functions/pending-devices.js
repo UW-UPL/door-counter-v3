@@ -4,14 +4,24 @@
  */
 
 exports.handler = async (event, context) => {
-    // Enable CORS for cross-origin requests
+    const GITHUB_BOT_TOKEN = process.env.GITHUB_BOT_TOKEN;
+    const PUBLIC_REPO_OWNER = process.env.PUBLIC_REPO_OWNER;
+    const PUBLIC_REPO_NAME = process.env.PUBLIC_REPO_NAME;
+
+    // Debug: Check if env vars are loaded
+    console.log('Environment check:', {
+        hasToken: !!GITHUB_BOT_TOKEN,
+        tokenLength: GITHUB_BOT_TOKEN?.length || 0,
+        owner: PUBLIC_REPO_OWNER || 'UNDEFINED',
+        repo: PUBLIC_REPO_NAME || 'UNDEFINED'
+    });
+
     const headers = {
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Headers': 'Content-Type',
         'Access-Control-Allow-Methods': 'GET, OPTIONS'
     };
 
-    // Handle preflight OPTIONS request
     if (event.httpMethod === 'OPTIONS') {
         return {
             statusCode: 200,
@@ -19,8 +29,6 @@ exports.handler = async (event, context) => {
             body: ''
         };
     }
-
-    // Only accept GET requests
     if (event.httpMethod !== 'GET') {
         return {
             statusCode: 405,
@@ -29,16 +37,19 @@ exports.handler = async (event, context) => {
         };
     }
 
-    // Get environment variables
-    const GITHUB_BOT_TOKEN = process.env.GITHUB_BOT_TOKEN;
-    const PUBLIC_REPO_OWNER = process.env.PUBLIC_REPO_OWNER;
-    const PUBLIC_REPO_NAME = process.env.PUBLIC_REPO_NAME;
-
-    if (!GITHUB_BOT_TOKEN) {
+    // Check if environment variables are configured
+    if (!GITHUB_BOT_TOKEN || !PUBLIC_REPO_OWNER || !PUBLIC_REPO_NAME) {
         return {
             statusCode: 500,
             headers,
-            body: JSON.stringify({ error: 'GitHub bot token not configured' })
+            body: JSON.stringify({
+                error: 'Missing environment variables',
+                details: {
+                    GITHUB_BOT_TOKEN: !!GITHUB_BOT_TOKEN,
+                    PUBLIC_REPO_OWNER: PUBLIC_REPO_OWNER || 'not set',
+                    PUBLIC_REPO_NAME: PUBLIC_REPO_NAME || 'not set'
+                }
+            })
         };
     }
 

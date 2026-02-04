@@ -25,7 +25,7 @@
 	// Fetch pending devices from backend API
 	async function fetchPendingDevices() {
 		try {
-			const response = await fetch('/api/pending-devices');
+			const response = await fetch('https://gregarious-cocada-36aa36.netlify.app/.netlify/functions/pending-devices');
 			const data = await response.json();
 
 			if (data.success) {
@@ -62,7 +62,7 @@
 		status = 'Creating registration PR...';
 
 		try {
-			const response = await fetch('/api/registrations', {
+			const response = await fetch('https://gregarious-cocada-36aa36.netlify.app/.netlify/functions/pending-devices/registrations', {
 				method: 'POST',
 				headers: {
 					'Content-Type': 'application/json'
