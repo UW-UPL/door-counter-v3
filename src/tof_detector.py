@@ -59,6 +59,16 @@ class MinDistFilter:
 NOBODY = 0
 SOMEONE = 1
 
+# State names for debug output
+STATE_NAMES = {
+    0: "NOBODY",
+    1: "COMMONS_ONLY",
+    2: "UPL_ONLY",
+    3: "BOTH",
+}
+
+ZONE_NAMES = ["COMMONS", "UPL "]
+
 class PeopleCounter:
     def __init__(self, threshold_z0_cm: float, threshold_z1_cm: float, min_threshold_cm: float = 0):
         self.thresholds = [threshold_z0_cm, threshold_z1_cm]
@@ -151,6 +161,11 @@ def play_sound(filepath):
 
 # Main Logic
 def main():
+    parser = argparse.ArgumentParser(description="UPL Doorbell People Counter")
+    parser.add_argument("--debug", action="store_true",
+                        help="Print every zone reading and state transition")
+    parser.add_argument("--no-audio", action="store_true",
+                        help="Disable sound playback")
     args = parser.parse_args()
 
     audio_ok = False
@@ -179,6 +194,10 @@ def main():
 
     print("\n" + "=" * 50)
     print("PEOPLE COUNTER ACTIVE")
+    if args.debug:
+        print("DEBUG MODE ON — showing all readings")
+    print("Press Ctrl+C to stop")
+    print("=" * 50 + "\n")
     last_status_time = time.time()
     # Main Loop
     try:
@@ -190,7 +209,33 @@ def main():
                     filtered = filters[current_zone].update(raw)
                 else:
                     filtered = floor_distances[current_zone]
-                
+
+                # Debug: show every reading
+                if args.debug:
+                    is_person = (filtered > MIN_THRESHOLD
+                                 and filtered < thresholds[current_zone])
+                    status_str = "SOMEONE" if is_person else "NOBODY "
+
+                    # Compute what the combined state would be
+                    combined = 0
+                    if current_zone == 0:
+                        if is_person:
+                            combined += 1
+                        if counter.prev_status[1] == SOMEONE:
+                            combined += 2
+                    else:
+                        if is_person:
+                            combined += 2
+                        if counter.prev_status[0] == SOMEONE:
+                            combined += 1
+
+                    path_slice = counter.path_track[:counter.filling_size]
+                    raw_str = f"{raw:>5}" if raw is not None else " None"
+                    print(f"  [{ZONE_NAMES[current_zone]}] "
+                          f"raw={raw_str}cm filt={filtered:>5.1f}cm → {status_str} | "
+                          f"State: {STATE_NAMES.get(combined, '?'):>12s} ({combined}) | "
+                          f"Path: {path_slice}")
+
                 result = counter.process(filtered, current_zone)
                 if result == 1:
                     print(f">>> ENTRY detected! Room count: {counter.people_count}")
@@ -207,6 +252,11 @@ def main():
                     time.sleep(0.01)
                 else:
                     time.sleep(0.01)
+
+            # Check for crossing timeout
+            if counter.check_timeout(CROSSING_TIMEOUT_S):
+                if args.debug:
+                    print("  [TIMEOUT] Crossing abandoned, state machine reset")
 
     except KeyboardInterrupt:
     sensor.stop_ranging()
