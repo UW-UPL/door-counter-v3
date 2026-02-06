@@ -82,7 +82,7 @@ def get_pending_devices(minutes: int = 10) -> List[Dict]:
         SELECT passkey, paired_at
         FROM devices
         WHERE name IS NULL
-        AND paired_at > datetime('now', ? || ' minutes')
+        AND paired_at > datetime('now', 'localtime', ? || ' minutes')
     """, (f"-{minutes}",))
     
     return [dict(row) for row in cursor.fetchall()]
