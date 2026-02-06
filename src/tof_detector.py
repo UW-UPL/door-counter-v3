@@ -148,3 +148,73 @@ def play_sound(filepath):
         pygame.mixer.music.play()
     except Exception as e:
         print(f"Could not play {filepath}: {e}")
+
+# Main Logic
+def main():
+    args = parser.parse_args()
+
+    audio_ok = False
+    if not args.no_audio:
+        audio_ok = init_audio()
+
+    print("Initializing VL53L1X sensor...")
+    i2c = board.I2C()
+    sensor = adafruit_vl53l1x.VL53L1X(i2c)
+    sensor.distance_mode = DISTANCE_MODE
+    sensor.timing_budget = TIMING_BUDGET_MS
+    sensor.roi_xy = (ROI_WIDTH, ROI_HEIGHT)
+    sensor.start_ranging()
+    print(f"Sensor configured: mode={DISTANCE_MODE}, "
+          f"budget={TIMING_BUDGET_MS}ms, ROI={ROI_WIDTH}x{ROI_HEIGHT}")
+
+    counter = PeopleCounter(thresholds[0], thresholds[1], MIN_THRESHOLD_CM)
+    filters = [MinDistFilter(MIN_DIST_FILTER_SIZE),
+               MinDistFilter(MIN_DIST_FILTER_SIZE)]
+    current_zone = 0
+    sensor.roi_center = ZONE_CENTERS[current_zone]
+    time.sleep(0.01)
+    if sensor.data_ready:
+        _ = sensor.distance
+        sensor.clear_interrupt()
+
+    print("\n" + "=" * 50)
+    print("PEOPLE COUNTER ACTIVE")
+    last_status_time = time.time()
+    # Main Loop
+    try:
+        while True:
+            if sensor.data_ready:
+                raw = sensor.distance
+                sensor.clear_interrupt()
+                if raw is not None and raw > 0:
+                    filtered = filters[current_zone].update(raw)
+                else:
+                    filtered = floor_distances[current_zone]
+                
+                result = counter.process(filtered, current_zone)
+                if result == 1:
+                    print(f">>> ENTRY detected! Room count: {counter.people_count}")
+                    #TODO: Call the BLE Detective HERE to determine ID
+                    if audio_ok:
+                        play_sound(ENTRY_SOUND)
+                    elif result == -1:
+                        print(f"<<< EXIT detected!  Room count: {counter.people_count}")
+
+                    next_zone = 1 - current_zone
+                    sensor.roi_center = ZONE_CENTERS[next_zone]
+                    current_zone = next_zone
+
+                    time.sleep(0.01)
+                else:
+                    time.sleep(0.01)
+
+    except KeyboardInterrupt:
+    sensor.stop_ranging()
+    print("\n" + "=" * 50)
+    print("STOPPED")
+    print(f"  Final room count: {counter.people_count}")
+    print("=" * 50)
+
+if __name__ == "__main__":
+    main()
+                
