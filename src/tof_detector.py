@@ -22,7 +22,7 @@ CROSSING_TIMEOUT_S = 5.0 # abandon crossing if takes longer than
 
 # TODO: Change to either random from bank / custom
 # Temp default entry sound
-ENTRY_SOUND = "sounds/custom/oliver.wav"
+ENTRY_SOUND = "../sounds/custom/oliver.wav"
 
 
 # Min Distance Filter
