@@ -17,8 +17,8 @@ class Device:
     MAX_HISTORY = 100
 
     # Presence detection tuning
-    ABSENCE_TIMEOUT = 30
-    PRESENCE_CHECK_INTERVAL = 10
+    ABSENCE_TIMEOUT = 60 * 3
+    PRESENCE_CHECK_INTERVAL = 60
     THRESHOLD_DBM = -60
 
     def __init__(self, mac: str, name: str, sound_file: str, share_presence: bool):
