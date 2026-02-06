@@ -3,8 +3,8 @@
     {
       "passkey": "730000",
       "paired_at": "2026-01-31T17:04:35.558410",
-      "name": "Nick",
-      "sound_file": "oliver.wav",
+      "name": "Test",
+      "sound_file": "test.wav",
       "share_presence": true
     }
   ]
