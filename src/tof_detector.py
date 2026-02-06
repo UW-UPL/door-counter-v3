@@ -131,3 +131,13 @@ class PeopleCounter:
             self.crossing_start_time = 0.0
             return True
         return False
+
+# Audio
+def init_audio():
+    try:
+        pygame.mixer.init()
+        print("Audio Setup!")
+        return True
+    except Edxception as e:
+        priint(f"Audio FAILED: {e}")
+        return False
