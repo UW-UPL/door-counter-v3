@@ -20,12 +20,12 @@ CROSSING_TIMEOUT_S = 5.0 # abandon crossing if takes longer than
 
 
 #TODO: Change to either random from bank / custom
-#Temp default entry sound 
-ENTRY_SOUND = "Demo_Cafe_AfterDrink_Water.wav"
+#Temp default entry sound
+ENTRY_SOUND = "sounds/custom/oliver.wav"
 
 
 # Min Distance Filter
-# Sliding window of last N readings nad reutrns the minimum (closest obj)
+# Sliding window of last N readings and returns the minimum (closest obj)
 class MinDistFilter:
     def __init__(self, window_size: int):
         self.buf = deque(maxlen=window_size)
@@ -51,7 +51,7 @@ class MinDistFilter:
 #   - They leave the Commons zone      → state goes 3 → 2
 #   - They leave the UPL zone          → state goes 2 → 0
 #   Entry sequence: 0 → 1 → 3 → 2 → 0
-# For exist it is just the reverse
+# For exit it is just the reverse
 
 # From my research this algorithm is used for most bidirectional
 # occupancy mgmt systems with minor variations between them.
@@ -138,6 +138,13 @@ def init_audio():
         pygame.mixer.init()
         print("Audio Setup!")
         return True
-    except Edxception as e:
-        priint(f"Audio FAILED: {e}")
+    except Exception as e:
+        print(f"Audio FAILED: {e}")
         return False
+
+def play_sound(filepath):
+    try:
+        pygame.mixer.music.load(filepath)
+        pygame.mixer.music.play()
+    except Exception as e:
+        print(f"Could not play {filepath}: {e}")
