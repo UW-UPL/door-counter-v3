@@ -1,6 +1,8 @@
 import asyncio
 from bleak import BleakScanner
 from device_manager import get_tracked_devices
+from device import Device
+
 
 CACHE_REFRESH_INTERVAL = 5  # seconds
 
@@ -8,28 +10,34 @@ CACHE_REFRESH_INTERVAL = 5  # seconds
 class BLEScanner:
     def __init__(self):
         self.running = False
-        self.tracked_by_mac = {}
+        
+        # mac -> Device
+        self.devices = {} 
 
     async def refresh_cache(self):
-        """Periodically refresh the tracked devices cache."""
-
+        """periodically refresh cache from database"""
         while self.running:
             tracked = get_tracked_devices()
-            self.tracked_by_mac = {d['mac']: d for d in tracked}
+            for d in tracked:
+                mac = d["mac"]
+                if mac in self.devices:
+                    device = self.devices[mac]
+                    device.name = d["name"]
+                    device.sound_file = d["sound_file"]
+                    device.share_presence = d["share_presence"]
+                else:
+                    self.devices[mac] = Device(mac, d["name"], d["sound_file"], d["share_presence"])
             await asyncio.sleep(CACHE_REFRESH_INTERVAL)
 
     async def start(self):
         self.running = True
         print("Starting BLE scanner...")
 
-        def callback(device, advertisement_data):
-            mac = device.address.upper()
-            if mac in self.tracked_by_mac:
-                rssi = advertisement_data.rssi
-                name = self.tracked_by_mac[mac].get('name', mac)
-                print(f"[{name}] RSSI: {rssi} dBm")
+        def callback(ble_device, advertisement_data):
+            mac = ble_device.address.upper()
+            if mac in self.devices:
+                self.devices[mac].add_sighting(advertisement_data.rssi)
 
-        # Start cache refresh task
         refresh_task = asyncio.create_task(self.refresh_cache())
 
         async with BleakScanner(callback) as scanner:
