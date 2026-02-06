@@ -143,6 +143,53 @@ class PeopleCounter:
             return True
         return False
 
+# Auto Calibrate
+def calibrate(sensor, zone_centers, n_samples=20, timeout_s=10.0):
+    averages = []
+    zone_names = ["COMMONS (zone 0)", "UPL (zone 1)"]
+
+    for z, center in enumerate(zone_centers):
+        print(f"  Measuring {zone_names[z]} (center={center})...")
+        sensor.roi_center = center
+        time.sleep(0.01)
+        if sensor.data_ready:
+            _ = sensor.distance
+            sensor.clear_interrupt()
+
+        readings = []
+        start = time.time()
+
+        while len(readings) < n_samples:
+            if time.time() - start > timeout_s:
+                print(f"    WARNING: Timeout after {len(readings)} samples")
+                break
+
+            reading_start = time.time()
+            while not sensor.data_ready:
+                if time.time() - reading_start > 0.2:
+                    break
+                time.sleep(0.001)
+
+            if sensor.data_ready:
+                d = sensor.distance
+                sensor.clear_interrupt()
+
+                if d is not None and d > 0:
+                    readings.append(d)
+
+            time.sleep(0.005)
+
+        if readings:
+            avg = sum(readings) / len(readings)
+            print(f"    Got {len(readings)} samples: "
+                  f"avg={avg:.1f}cm, min={min(readings)}cm, max={max(readings)}cm")
+            averages.append(avg)
+        else:
+            print(f"    ERROR: No readings! Using default 200cm")
+            averages.append(200.0)
+
+    return averages
+
 # Audio
 def init_audio():
     try:
@@ -177,19 +224,30 @@ def main():
     if not args.no_audio:
         audio_ok = init_audio()
 
-    floor_distances = [200.0, 200.0]
-    threshold_pct = args.threshold / 100.0
-    thresholds = [d * threshold_pct for d in floor_distances]
-
     print("Initializing VL53L1X sensor...")
     i2c = board.I2C()
     sensor = adafruit_vl53l1x.VL53L1X(i2c)
+
     sensor.distance_mode = DISTANCE_MODE
     sensor.timing_budget = TIMING_BUDGET_MS
     sensor.roi_xy = (ROI_WIDTH, ROI_HEIGHT)
+
     sensor.start_ranging()
     print(f"Sensor configured: mode={DISTANCE_MODE}, "
           f"budget={TIMING_BUDGET_MS}ms, ROI={ROI_WIDTH}x{ROI_HEIGHT}")
+
+    print("\n" + "=" * 50)
+    print("CALIBRATING — Keep the doorway CLEAR!")
+    print("=" * 50)
+    floor_distances = calibrate(sensor, ZONE_CENTERS, CALIBRATION_SAMPLES)
+    threshold_pct = args.threshold / 100.0
+    thresholds = [d * threshold_pct for d in floor_distances]
+
+    print(f"\nFloor distances: zone0={floor_distances[0]:.1f}cm, "
+          f"zone1={floor_distances[1]:.1f}cm")
+    print(f"Thresholds ({args.threshold}%): "
+          f"zone0={thresholds[0]:.1f}cm, zone1={thresholds[1]:.1f}cm")
+    print(f"Min threshold: {MIN_THRESHOLD_CM}cm")
 
     counter = PeopleCounter(thresholds[0], thresholds[1], MIN_THRESHOLD_CM)
     filters = [MinDistFilter(MIN_DIST_FILTER_SIZE),
