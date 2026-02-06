@@ -53,5 +53,72 @@ class MinDistFilter:
 #   Entry sequence: 0 → 1 → 3 → 2 → 0
 # For exist it is just the reverse
 
-# From my research this algorithm is used for most single file occupancy mgmt
-# systems with minor variations between them.
+# From my research this algorithm is used for most bidirectional
+# occupancy mgmt systems with minor variations between them.
+
+NOBODY = 0
+SOMEONE = 1
+
+class PeopleCounter:
+    def __init__(self, threshold_z0_cm: float, threshold_z1_cm: float, min_threshold_cm: float = 0):
+        self.thresholds = [threshold_z0_cm, threshold_z1_cm]
+        self.min_threshold = min_threshold_cm
+        self.path_track = [0, 0, 0, 0]
+        self.filling_size = 1
+        self.prev_status = [NOBODY, NOBODY]
+        self.people_count = 0
+        self.crossing_start_time = 0.0
+
+    def process(self, distance_cm: float, zone: int) -> int:
+        if (distance_cm is not None
+                and distance_cm > self.min_threshold
+                and distance_cm < self.thresholds[zone]):
+            current = SOMEONE
+        else:
+            current = NOBODY
+
+        if current == self.prev_status[zone]:
+            return 0
+
+        other_zone = 1 - zone
+        combined = 0
+        if zone == 0:
+            if current == SOMEONE:
+                combined += 1
+            if self.prev_status[other_zone] == SOMEONE:
+                combined += 2
+        else:
+            if current == SOMEONE:
+                combined += 2
+            if self.prev_status[other_zone] == SOMEONE:
+                combined += 1
+
+        self.prev_status[zone] = current
+
+        if self.filling_size < 4:
+            self.filling_size += 1
+
+        if self.prev_status[0] == NOBODY and self.prev_status[1] == NOBODY:
+            change = 0
+
+            if self.filling_size == 4:
+                p = self.path_track
+                # Entry pattern:
+                if p[1] == 1 and p[2] == 3 and p[3] == 2:
+                    change = 1
+                # Exit pattern:
+                elif p[1] == 2 and p[2] == 3 and p[3] == 1:
+                    change = -1
+
+            #cannot go negative :)
+            self.people_count = max(0, self.people_count + change)
+            self.filling_size = 1
+            self.crossing_start_time = 0.0
+            return change
+        else:
+            self.path_track[self.filling_size - 1] = combined
+
+            if self.crossing_start_time == 0.0:
+                self.crossing_start_time = time.time()
+            return 0
+
