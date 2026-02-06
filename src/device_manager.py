@@ -42,7 +42,6 @@ def _init_db(conn: sqlite3.Connection):
             name TEXT,
             share_presence INTEGER DEFAULT 0,
             sound_file TEXT,
-            show_location INTEGER DEFAULT 0,
             completed_at DATETIME
         )
     """) # goofy ahh sqlite doesn't have boolean types
