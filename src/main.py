@@ -9,7 +9,7 @@ from device_manager import get_tracked_devices
 class UPLJingleSystem:
     def __init__(self, config_path: str = "./config.yaml"):
         with open(config_path, 'r') as f:
-            self.config = yaml.safe_load(f)
+            self.config = yaml.safe_load(f) or {}
 
         self.audio_player = AudioPlayer(
             default_sounds_dir=self.config.get('audio', {}).get('default_sounds_dir', './sounds/default'),
