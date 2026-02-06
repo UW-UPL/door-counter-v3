@@ -218,6 +218,8 @@ def main():
                         help=f"Threshold %% of floor distance (default: {THRESHOLD_PERCENT})")
     parser.add_argument("--status-interval", type=float, default=0,
                         help="Print periodic status every N seconds (0=off)")
+    parser.add_argument("--initial-count", type=int, default=0,
+                        help="Initial people count (default: 0)")
     args = parser.parse_args()
 
     audio_ok = False
@@ -250,6 +252,7 @@ def main():
     print(f"Min threshold: {MIN_THRESHOLD_CM}cm")
 
     counter = PeopleCounter(thresholds[0], thresholds[1], MIN_THRESHOLD_CM)
+    counter.people_count = args.initial_count
     filters = [MinDistFilter(MIN_DIST_FILTER_SIZE),
                MinDistFilter(MIN_DIST_FILTER_SIZE)]
     current_zone = 0
@@ -261,6 +264,8 @@ def main():
 
     print("\n" + "=" * 50)
     print("PEOPLE COUNTER ACTIVE")
+    if args.initial_count > 0:
+        print(f"Starting count: {args.initial_count}")
     if args.debug:
         print("DEBUG MODE ON — showing all readings")
     print("Press Ctrl+C to stop")
