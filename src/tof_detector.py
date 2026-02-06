@@ -122,3 +122,12 @@ class PeopleCounter:
                 self.crossing_start_time = time.time()
             return 0
 
+    def check_timeout(self, timeout_s: float) -> bool:
+        if self.crossing_start_time == 0.0:
+            return False
+        if time.time() - self.crossing_start_time > timeout_s:
+            self.filling_size = 1
+            self.prev_status = [NOBODY, NOBODY]
+            self.crossing_start_time = 0.0
+            return True
+        return False
