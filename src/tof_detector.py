@@ -59,7 +59,6 @@ class MinDistFilter:
 NOBODY = 0
 SOMEONE = 1
 
-# State names for debug output
 STATE_NAMES = {
     0: "NOBODY",
     1: "COMMONS_ONLY",
@@ -166,6 +165,10 @@ def main():
                         help="Print every zone reading and state transition")
     parser.add_argument("--no-audio", action="store_true",
                         help="Disable sound playback")
+    parser.add_argument("--threshold", type=int, default=THRESHOLD_PERCENT,
+                        help=f"Threshold %% of floor distance (default: {THRESHOLD_PERCENT})")
+    parser.add_argument("--status-interval", type=float, default=0,
+                        help="Print periodic status every N seconds (0=off)")
     args = parser.parse_args()
 
     audio_ok = False
@@ -210,13 +213,12 @@ def main():
                 else:
                     filtered = floor_distances[current_zone]
 
-                # Debug: show every reading
+                # Debug
                 if args.debug:
                     is_person = (filtered > MIN_THRESHOLD
                                  and filtered < thresholds[current_zone])
                     status_str = "SOMEONE" if is_person else "NOBODY "
 
-                    # Compute what the combined state would be
                     combined = 0
                     if current_zone == 0:
                         if is_person:
@@ -253,10 +255,17 @@ def main():
                 else:
                     time.sleep(0.01)
 
-            # Check for crossing timeout
             if counter.check_timeout(CROSSING_TIMEOUT_S):
                 if args.debug:
                     print("  [TIMEOUT] Crossing abandoned, state machine reset")
+
+            if args.status_interval > 0:
+                now = time.time()
+                if now - last_status_time > args.status_interval:
+                    print(f"[STATUS] Count: {counter.people_count} | "
+                          f"Zone distances: commons={filters[0].buf[-1] if filters[0].buf else '?'}cm, "
+                          f"upl={filters[1].buf[-1] if filters[1].buf else '?'}cm")
+                    last_status_time = now
 
     except KeyboardInterrupt:
     sensor.stop_ranging()
