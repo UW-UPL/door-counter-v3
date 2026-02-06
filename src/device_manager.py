@@ -42,7 +42,6 @@ def _init_db(conn: sqlite3.Connection):
             name TEXT,
             share_presence INTEGER DEFAULT 0,
             sound_file TEXT,
-            show_location INTEGER DEFAULT 0,
             completed_at DATETIME
         )
     """) # goofy ahh sqlite doesn't have boolean types
@@ -83,7 +82,7 @@ def get_pending_devices(minutes: int = 10) -> List[Dict]:
         SELECT passkey, paired_at
         FROM devices
         WHERE name IS NULL
-        AND paired_at > datetime('now', ? || ' minutes')
+        AND paired_at > datetime('now', 'localtime', ? || ' minutes')
     """, (f"-{minutes}",))
     
     return [dict(row) for row in cursor.fetchall()]

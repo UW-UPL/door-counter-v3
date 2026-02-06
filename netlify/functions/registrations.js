@@ -123,7 +123,7 @@ exports.handler = async (event, context) => {
                 title: `Registration for ${name}`,
                 head: branchName,
                 base: 'main',
-                body: `Adding device registration:\n- Passkey: ${passkey}\n- Name: ${name}\n- Sound: ${soundFile || 'None'}\n- Share Presence: ${sharePresence ? 'Yes' : 'No'}\n- Paired at: ${pairedAt}\n\nCreated via BLE registration bot.`,
+                body: `Adding device registration:\n- Passkey: ${passkey}\n- Name: ${name}\n- Sound: ${soundFile || 'None'}\n- Share Presence: ${sharePresence ? 'Yes' : 'No'}\n- Paired at: ${pairedAt}\n\nCreated with 🧀 via UPL Door Counter Bot.`,
                 maintainer_can_modify: true
             }
         });
