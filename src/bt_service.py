@@ -38,7 +38,7 @@ class UPLAgent(dbus.service.Object):
                     self.pending_devices.discard(device)
                     return False
                 # Wait for key exchange to complete
-                GLib.timeout_add_seconds(3, disconnect_and_cleanup)
+                GLib.timeout_add_seconds(10, disconnect_and_cleanup)
 
         self.bus.add_signal_receiver(
             on_properties_changed,
