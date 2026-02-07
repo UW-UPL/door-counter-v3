@@ -42,7 +42,7 @@ MAIN_PID=$!
 
 # Start GitHub sync service
 echo "Starting GitHub sync service..."
-#"$PYTHON" src/github_sync.py &
+"$PYTHON" src/github_sync.py &
 #SYNC_PID=$!
 
 echo ""
