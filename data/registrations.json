@@ -6,6 +6,13 @@
       "name": "Test",
       "sound_file": "test.wav",
       "share_presence": true
+    },
+    {
+      "passkey": "481014",
+      "paired_at": "2026-02-07T01:18:52.209713",
+      "name": "nick",
+      "sound_file": "test.wav",
+      "share_presence": true
     }
   ]
 }
