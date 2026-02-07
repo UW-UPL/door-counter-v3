@@ -45,6 +45,8 @@ echo "Starting GitHub sync service..."
 #"$PYTHON" src/github_sync.py &
 #SYNC_PID=$!
 
+sleep 2
+
 echo ""
 echo "All services running"
 echo "  - Bluetooth pairing service (PID: $BT_PID)"
