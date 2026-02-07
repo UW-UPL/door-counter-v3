@@ -42,8 +42,8 @@ MAIN_PID=$!
 
 # Start GitHub sync service
 echo "Starting GitHub sync service..."
-#"$PYTHON" src/github_sync.py &
-#SYNC_PID=$!
+"$PYTHON" src/github_sync.py &
+SYNC_PID=$!
 
 sleep 2
 
@@ -69,5 +69,4 @@ cleanup() {
 
 trap cleanup SIGINT SIGTERM
 
-# Wait for both processes
 wait

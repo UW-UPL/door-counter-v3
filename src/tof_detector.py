@@ -1,4 +1,4 @@
-#Prereqs: pip3 install adafruit-circuitpython-vl53l1x pygame
+# Prereqs: pip3 install adafruit-circuitpython-vl53l1x pygame
 
 import time
 import argparse
@@ -8,20 +8,21 @@ import pygame
 from collections import deque
 
 # Config
+DISTANCE_MODE = 2
 TIMING_BUDGET_MS = 33 # ms per measurement per zone
-ROI_WIDTH = 8 # SPADs wide per zone 
+ROI_WIDTH = 8 # SPADs wide per zone
 ROI_HEIGHT = 16 # SPADs tall per zone (should always be 16)
 ZONE_CENTERS = [167, 231]
 THRESHOLD_PERCENT = 80 # % of floor dist
-MIN_THRESHOLD = 20 # ignore closer to this (ignore door)
+MIN_THRESHOLD_CM = 20 # ignore closer to this (ignore door)
 CALIBRATION_SAMPLES = 20 # Readings per zone during calibration
 MIN_DIST_FILTER_SIZE = 3 # rolling minimum filter window
 CROSSING_TIMEOUT_S = 5.0 # abandon crossing if takes longer than
 
 
-#TODO: Change to either random from bank / custom
-#Temp default entry sound
-ENTRY_SOUND = "sounds/custom/oliver.wav"
+# TODO: Change to either random from bank / custom
+# Temp default entry sound
+ENTRY_SOUND = "../sounds/custom/oliver.wav"
 
 
 # Min Distance Filter
@@ -32,12 +33,13 @@ class MinDistFilter:
 
     def update(self, distance_cm: float) -> float:
         self.buf.append(distance_cm)
+        return min(self.buf)
 
     def reset(self):
         self.buf.clear()
     
 # State Machine
-# The sensor alternates between two zones Commons and UPL). At any moment,
+# The sensor alternates between two zones (Commons and UPL). At any moment,
 # each zone is either NOBODY or SOMEONE. We encode the combined state as:
 #
 #   State 0 = nobody in either zone
@@ -58,6 +60,15 @@ class MinDistFilter:
 
 NOBODY = 0
 SOMEONE = 1
+
+STATE_NAMES = {
+    0: "NOBODY",
+    1: "COMMONS_ONLY",
+    2: "UPL_ONLY",
+    3: "BOTH",
+}
+
+ZONE_NAMES = ["COMMONS", "UPL"]
 
 class PeopleCounter:
     def __init__(self, threshold_z0_cm: float, threshold_z1_cm: float, min_threshold_cm: float = 0):
@@ -110,7 +121,7 @@ class PeopleCounter:
                 elif p[1] == 2 and p[2] == 3 and p[3] == 1:
                     change = -1
 
-            #cannot go negative :)
+            # cannot go negative :)
             self.people_count = max(0, self.people_count + change)
             self.filling_size = 1
             self.crossing_start_time = 0.0
@@ -132,6 +143,53 @@ class PeopleCounter:
             return True
         return False
 
+# Auto Calibrate
+def calibrate(sensor, zone_centers, n_samples=20, timeout_s=10.0):
+    averages = []
+    zone_names = ["COMMONS (zone 0)", "UPL (zone 1)"]
+
+    for z, center in enumerate(zone_centers):
+        print(f"  Measuring {zone_names[z]} (center={center})...")
+        sensor.roi_center = center
+        time.sleep(0.01)
+        if sensor.data_ready:
+            _ = sensor.distance
+            sensor.clear_interrupt()
+
+        readings = []
+        start = time.time()
+
+        while len(readings) < n_samples:
+            if time.time() - start > timeout_s:
+                print(f"    WARNING: Timeout after {len(readings)} samples")
+                break
+
+            reading_start = time.time()
+            while not sensor.data_ready:
+                if time.time() - reading_start > 0.2:
+                    break
+                time.sleep(0.001)
+
+            if sensor.data_ready:
+                d = sensor.distance
+                sensor.clear_interrupt()
+
+                if d is not None and d > 0:
+                    readings.append(d)
+
+            time.sleep(0.005)
+
+        if readings:
+            avg = sum(readings) / len(readings)
+            print(f"    Got {len(readings)} samples: "
+                  f"avg={avg:.1f}cm, min={min(readings)}cm, max={max(readings)}cm")
+            averages.append(avg)
+        else:
+            print(f"    ERROR: No readings! Using default 200cm")
+            averages.append(200.0)
+
+    return averages
+
 # Audio
 def init_audio():
     try:
@@ -151,6 +209,17 @@ def play_sound(filepath):
 
 # Main Logic
 def main():
+    parser = argparse.ArgumentParser(description="UPL Doorbell People Counter")
+    parser.add_argument("--debug", action="store_true",
+                        help="Print every zone reading and state transition")
+    parser.add_argument("--no-audio", action="store_true",
+                        help="Disable sound playback")
+    parser.add_argument("--threshold", type=int, default=THRESHOLD_PERCENT,
+                        help=f"Threshold %% of floor distance (default: {THRESHOLD_PERCENT})")
+    parser.add_argument("--status-interval", type=float, default=0,
+                        help="Print periodic status every N seconds (0=off)")
+    parser.add_argument("--initial-count", type=int, default=0,
+                        help="Initial people count (default: 0)")
     args = parser.parse_args()
 
     audio_ok = False
@@ -160,14 +229,30 @@ def main():
     print("Initializing VL53L1X sensor...")
     i2c = board.I2C()
     sensor = adafruit_vl53l1x.VL53L1X(i2c)
+
     sensor.distance_mode = DISTANCE_MODE
     sensor.timing_budget = TIMING_BUDGET_MS
     sensor.roi_xy = (ROI_WIDTH, ROI_HEIGHT)
+
     sensor.start_ranging()
     print(f"Sensor configured: mode={DISTANCE_MODE}, "
           f"budget={TIMING_BUDGET_MS}ms, ROI={ROI_WIDTH}x{ROI_HEIGHT}")
 
+    print("\n" + "=" * 50)
+    print("CALIBRATING — Keep the doorway CLEAR!")
+    print("=" * 50)
+    floor_distances = calibrate(sensor, ZONE_CENTERS, CALIBRATION_SAMPLES)
+    threshold_pct = args.threshold / 100.0
+    thresholds = [d * threshold_pct for d in floor_distances]
+
+    print(f"\nFloor distances: zone0={floor_distances[0]:.1f}cm, "
+          f"zone1={floor_distances[1]:.1f}cm")
+    print(f"Thresholds ({args.threshold}%): "
+          f"zone0={thresholds[0]:.1f}cm, zone1={thresholds[1]:.1f}cm")
+    print(f"Min threshold: {MIN_THRESHOLD_CM}cm")
+
     counter = PeopleCounter(thresholds[0], thresholds[1], MIN_THRESHOLD_CM)
+    counter.people_count = args.initial_count
     filters = [MinDistFilter(MIN_DIST_FILTER_SIZE),
                MinDistFilter(MIN_DIST_FILTER_SIZE)]
     current_zone = 0
@@ -179,6 +264,12 @@ def main():
 
     print("\n" + "=" * 50)
     print("PEOPLE COUNTER ACTIVE")
+    if args.initial_count > 0:
+        print(f"Starting count: {args.initial_count}")
+    if args.debug:
+        print("DEBUG MODE ON — showing all readings")
+    print("Press Ctrl+C to stop")
+    print("=" * 50 + "\n")
     last_status_time = time.time()
     # Main Loop
     try:
@@ -190,31 +281,68 @@ def main():
                     filtered = filters[current_zone].update(raw)
                 else:
                     filtered = floor_distances[current_zone]
-                
+
+                # Debug
+                if args.debug:
+                    is_person = (filtered > MIN_THRESHOLD_CM
+                                 and filtered < thresholds[current_zone])
+                    status_str = "SOMEONE" if is_person else "NOBODY "
+
+                    combined = 0
+                    if current_zone == 0:
+                        if is_person:
+                            combined += 1
+                        if counter.prev_status[1] == SOMEONE:
+                            combined += 2
+                    else:
+                        if is_person:
+                            combined += 2
+                        if counter.prev_status[0] == SOMEONE:
+                            combined += 1
+
+                    path_slice = counter.path_track[:counter.filling_size]
+                    raw_str = f"{raw:>5}" if raw is not None else " None"
+                    print(f"  [{ZONE_NAMES[current_zone]:>7s}] "
+                          f"raw={raw_str}cm filt={filtered:>5.1f}cm → {status_str} | "
+                          f"State: {STATE_NAMES.get(combined, '?'):>12s} ({combined}) | "
+                          f"Path: {path_slice}")
+
                 result = counter.process(filtered, current_zone)
                 if result == 1:
                     print(f">>> ENTRY detected! Room count: {counter.people_count}")
-                    #TODO: Call the BLE Detective HERE to determine ID
+                    # TODO: Call the BLE Detective HERE to determine ID
                     if audio_ok:
                         play_sound(ENTRY_SOUND)
-                    elif result == -1:
-                        print(f"<<< EXIT detected!  Room count: {counter.people_count}")
+                elif result == -1:
+                    print(f"<<< EXIT detected!  Room count: {counter.people_count}")
 
-                    next_zone = 1 - current_zone
-                    sensor.roi_center = ZONE_CENTERS[next_zone]
-                    current_zone = next_zone
+                next_zone = 1 - current_zone
+                sensor.roi_center = ZONE_CENTERS[next_zone]
+                current_zone = next_zone
 
-                    time.sleep(0.01)
-                else:
-                    time.sleep(0.01)
+                time.sleep(0.01)
+
+            else:
+                time.sleep(0.001)
+
+            if counter.check_timeout(CROSSING_TIMEOUT_S):
+                if args.debug:
+                    print("  [TIMEOUT] Crossing abandoned, state machine reset")
+
+            if args.status_interval > 0:
+                now = time.time()
+                if now - last_status_time > args.status_interval:
+                    print(f"[STATUS] Count: {counter.people_count} | "
+                          f"Zone distances: commons={filters[0].buf[-1] if filters[0].buf else '?'}cm, "
+                          f"upl={filters[1].buf[-1] if filters[1].buf else '?'}cm")
+                    last_status_time = now
 
     except KeyboardInterrupt:
-    sensor.stop_ranging()
-    print("\n" + "=" * 50)
-    print("STOPPED")
-    print(f"  Final room count: {counter.people_count}")
-    print("=" * 50)
+        sensor.stop_ranging()
+        print("\n" + "=" * 50)
+        print("STOPPED")
+        print(f"  Final room count: {counter.people_count}")
+        print("=" * 50)
 
 if __name__ == "__main__":
     main()
-                

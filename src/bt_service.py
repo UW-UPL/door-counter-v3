@@ -38,7 +38,7 @@ class UPLAgent(dbus.service.Object):
                     self.pending_devices.discard(device)
                     return False
                 # Wait for key exchange to complete
-                GLib.timeout_add_seconds(3, disconnect_and_cleanup)
+                GLib.timeout_add_seconds(10, disconnect_and_cleanup)
 
         self.bus.add_signal_receiver(
             on_properties_changed,
@@ -50,7 +50,7 @@ class UPLAgent(dbus.service.Object):
     @dbus.service.method(AGENT_INTERFACE, in_signature="os", out_signature="")
     def AuthorizeService(self, device, _):
         # Reject all service requests - we only want the Identity MAC
-        self._disconnect(device)
+        # self._disconnect(device)
         raise dbus.DBusException("org.bluez.Error.Rejected", "Service access denied")
 
     @dbus.service.method(AGENT_INTERFACE, in_signature="os", out_signature="")
