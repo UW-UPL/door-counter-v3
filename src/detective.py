@@ -96,7 +96,11 @@ class Detective:
 
             # RSSI TREND
             trend_score = 0.5 # default of 0.5 (neutral)
-            recent_readings = list(history)[-10:]
+            time_window = timedelta(seconds=30)
+            recent_readings = []
+            for rssi, ts in history:
+                if now - ts <= time_window:
+                    recent_readings.append((rssi, ts))
 
             if len(recent_readings) >= 3: # only try to analyze trend if we have enough readings
                 rssis, timestamps = zip(*recent_readings)
