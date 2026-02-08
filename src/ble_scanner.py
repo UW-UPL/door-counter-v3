@@ -43,16 +43,17 @@ class BLEScanner:
 
         refresh_task = asyncio.create_task(self.refresh_cache())
 
-        async with BleakScanner(callback) as scanner:
-            print("BLE scanner active - tracking devices")
-            while self.running:
-                await asyncio.sleep(0.1)
-
-        refresh_task.cancel()
         try:
-            await refresh_task
-        except asyncio.CancelledError:
-            pass
+            async with BleakScanner(callback):
+                print("BLE scanner active - tracking devices")
+                while self.running:
+                    await asyncio.sleep(0.1)
+        finally:
+            refresh_task.cancel()
+            try:
+                await refresh_task
+            except asyncio.CancelledError:
+                pass
 
     def stop(self):
         self.running = False
