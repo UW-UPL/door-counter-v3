@@ -38,6 +38,7 @@ class BLEScanner:
         def callback(ble_device, advertisement_data):
             mac = ble_device.address.upper()
             if mac in self.devices:
+                print(self.devices[mac].name, advertisement_data.rssi)
                 self.detective.add_sighting(self.devices[mac], advertisement_data.rssi)
 
         refresh_task = asyncio.create_task(self.refresh_cache())
