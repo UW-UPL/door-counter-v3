@@ -7,7 +7,6 @@ from device_manager import add_pending_device
 AGENT_INTERFACE = "org.bluez.Agent1"
 AGENT_PATH = "/upl/agent"
 
-
 class UPLAgent(dbus.service.Object):
     def __init__(self, bus, path):
         super().__init__(bus, path)
@@ -88,11 +87,10 @@ def main():
     agent_manager.RegisterAgent(AGENT_PATH, "DisplayYesNo")
     agent_manager.RequestDefaultAgent(AGENT_PATH)
 
-    adapter_iface.StartDiscovery()
-    print("Discovery started - waiting for devices to pair...\n")
-
     main_loop = GLib.MainLoop()
     try:
+        adapter_iface.StartDiscovery()
+        print("Discovery started - waiting for devices to pair...\n")
         main_loop.run()
     except KeyboardInterrupt:
         print("\nStopping Bluetooth service...")
@@ -102,7 +100,10 @@ def main():
         except:
             pass
 
-        adapter_props.Set("org.bluez.Adapter1", "Discoverable", dbus.Boolean(False))
+        try:
+            adapter_props.Set("org.bluez.Adapter1", "Discoverable", dbus.Boolean(False))
+        except:
+            pass
 
         try:
             agent_manager.UnregisterAgent(AGENT_PATH)
