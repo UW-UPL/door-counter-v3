@@ -1,18 +1,20 @@
 import asyncio
 from bleak import BleakScanner
 from device_manager import get_tracked_devices
-from device import Device
-
+from detective import Detective
+from detective import Device
 
 CACHE_REFRESH_INTERVAL = 5  # seconds
 
 
 class BLEScanner:
-    def __init__(self):
+    def __init__(self, detective: Detective):
         self.running = False
+        self.detective = detective
         
-        # mac -> Device
-        self.devices = {} 
+        # all tracked devices from database
+        # refreshes periodically
+        self.devices = {}
 
     async def refresh_cache(self):
         """periodically refresh cache from database"""
@@ -36,7 +38,7 @@ class BLEScanner:
         def callback(ble_device, advertisement_data):
             mac = ble_device.address.upper()
             if mac in self.devices:
-                self.devices[mac].add_sighting(advertisement_data.rssi)
+                self.detective.add_sighting(self.devices[mac], advertisement_data.rssi)
 
         refresh_task = asyncio.create_task(self.refresh_cache())
 

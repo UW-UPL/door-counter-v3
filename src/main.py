@@ -15,8 +15,9 @@ class UPLJingleSystem:
             default_sounds_dir=self.config.get('audio', {}).get('default_sounds_dir', './sounds/default'),
             custom_sounds_dir=self.config.get('audio', {}).get('custom_sounds_dir', './sounds/custom')
         )
-
-        self.ble_scanner = BLEScanner()
+        self.detective = Detective()
+        self.ble_scanner = BLEScanner(self.detective)
+        
         self.running = False
 
     async def run(self):
