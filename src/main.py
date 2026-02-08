@@ -1,5 +1,6 @@
 import asyncio
 import signal
+import sys
 import yaml
 from ble_scanner import BLEScanner
 from audio_player import AudioPlayer
@@ -38,16 +39,37 @@ class UPLJingleSystem:
             print("No opted-in devices to track (need name + sound_file set)\n")
 
         # Start BLE scanner
-        task = asyncio.create_task(self.ble_scanner.start(), name="BLE")
+        ble_task = asyncio.create_task(self.ble_scanner.start(), name="BLE")
+        keyboard_task = asyncio.create_task(self.keyboard_listener(), name="Keyboard")
 
-        print("All systems operational\n")
+        print("All systems operational")
+        print("Press 'e' + Enter to simulate entrance, 'x' + Enter to simulate exit\n")
 
         try:
-            await task
+            await asyncio.gather(ble_task, keyboard_task)
         except asyncio.CancelledError:
             print("\nShutting down...")
         finally:
             await self.shutdown()
+
+    async def keyboard_listener(self):
+        """Listen for keyboard input to simulate ToF events"""
+        loop = asyncio.get_event_loop()
+        reader = asyncio.StreamReader()
+        protocol = asyncio.StreamReaderProtocol(reader)
+        await loop.connect_read_pipe(lambda: protocol, sys.stdin)
+
+        while self.running:
+            line = await reader.readline()
+            key = line.decode().strip().lower()
+            if key == 'e':
+                print("\n[TEST] Simulating entrance...")
+                self.detective.enter()
+                print(f"[TEST] tof_size={self.detective.tof_size}, active_devices={[d.name for d in self.detective.active_devices]}\n")
+            elif key == 'x':
+                print("\n[TEST] Simulating exit...")
+                self.detective.exit()
+                print(f"[TEST] tof_size={self.detective.tof_size}, active_devices={[d.name for d in self.detective.active_devices]}\n")
 
     async def shutdown(self):
         print("Cleaning up...")

@@ -3,10 +3,8 @@ import threading
 from collections import deque
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from enum import Enum, auto
 import numpy as np
-import matplotlib.pyplot as plt
-
+import time
 
 class Device:
     MAX_HISTORY = 100
@@ -28,6 +26,8 @@ class Device:
 
 class Detective:
     def __init__(self):
+        self.lock = threading.Lock()
+
         # all devices that we have recently observed
         # mac -> Device()
         self.devices = {}
@@ -38,28 +38,16 @@ class Detective:
         # devices that the detective thinks are currently in the room
         self.active_devices = []
 
+        self._running = True
+        self._gc_thread = threading.Thread(target=self._gc_loop,  daemon=True)
+        self._gc_thread.start()
+
     # called by ToF when it detects an entrance
     def enter(self):
-        candidate = self._pick_candidate()
-        if candidate != None:
-            self.active_devices.append(candidate)
+        self.lock.acquire()
 
-        if len(self.active_devices > self.tof_size):
-            # TODO figure out who to kick
-            pass
-    
-    # called by ToF when it detects an exit
-    def exit(self):
-        self.tof_size -= 1
+        self.tof_size += 1
 
-    def add_sighting(self, device: Device, rssi: int):
-        if device.mac in self.devices:
-            device.add_signal(rssi)
-        else:
-            self.devices[device.mac] = device
-            device.add_signal(rssi)
-    
-    def _pick_candidate(self):
         #   Heuristic:
         #
         #   Recency bias: Devices that just sent a signal are considered more favorably
@@ -78,13 +66,11 @@ class Detective:
         #   A device can later prove that it's inside the room. We have a thread that
         #   periodically looks at devices and tries to refactor active_devices based on up-to-date data
         
-        self.tof_size += 1
-
         now = datetime.now()
         best_score = 0
-        best_device = None
+        candidate = None
 
-        MIN_SCORE_THRESHOLD = 0.25
+        MIN_SCORE_THRESHOLD = 0.30
 
         WEIGHT_RECENCY = 0.35
         WEIGHT_TREND = 0.35
@@ -92,6 +78,8 @@ class Detective:
         WEIGHT_CONSISTENCY = 0.10
 
         for mac, device in self.devices.items():
+            print("ANALYZING DEVICE")
+            print(mac)
             if device in self.active_devices:
                 continue
 
@@ -100,7 +88,7 @@ class Detective:
                 continue 
 
             # RECENCY BIAS
-            latest_rssi, latest_time = history[-1]
+            _, latest_time = history[-1]
             seconds_ago = (now - latest_time).total_seconds()
                 # exponential decay
                 # e^(-1) = 0.36
@@ -145,8 +133,52 @@ class Detective:
             
             total = WEIGHT_RECENCY * recency_score + WEIGHT_TREND * trend_score + WEIGHT_RSSI * rssi_score + WEIGHT_CONSISTENCY * consistency_score
 
+            print(total)
             if total > best_score and total > MIN_SCORE_THRESHOLD:
                 best_score = total
-                best_device = device
+                candidate = device
         
-        return best_device
+        if candidate != None:
+            self.active_devices.append(candidate)
+
+        self.lock.release()
+
+        #  if len(self.active_devices) > self.tof_size: GC will figure it out
+    
+    # called by ToF when it detects an exit
+    def exit(self):
+        # give some time for the person to walk away
+        time.sleep(5)
+
+        self.lock.acquire()
+        self.tof_size -= 1
+        self.lock.release()
+        # GC will figure out who to kick in a bit
+
+    def add_sighting(self, device: Device, rssi: int):
+        if device.mac in self.devices:
+            device.add_signal(rssi)
+        else:
+            self.devices[device.mac] = device
+            device.add_signal(rssi)
+    
+    
+    def _gc_loop(self):
+        #   runs every 5 seconds
+        #   
+        # if len(active_devices) > tof_size:
+        #   score all active devices based on "in-room" confidence heuristic
+        #   remove the lowest scoring devices until len == tof_size
+        #
+        # if len(active_devices) < tof_size:
+        #   score all non-active devices
+        #   promote the highest-scoring devices until len == tof_size
+        #   only promote if the score > threshold, otherwise we can leave slot empty (unknown person)
+        #
+        # always do replace phase (even if sizes match):
+        #   find the lowest scoring active device
+        #   find the highest scoring non-active device (if any)
+        #   if non-active score >> actiive score, swap them
+        #   this handles when wrong devices are added or a better candidate emerged
+
+        pass
