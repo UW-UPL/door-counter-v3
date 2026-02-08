@@ -49,6 +49,10 @@ class BLEScanner:
                 await asyncio.sleep(0.1)
 
         refresh_task.cancel()
+        try:
+            await refresh_task
+        except asyncio.CancelledError:
+            pass
 
     def stop(self):
         self.running = False
