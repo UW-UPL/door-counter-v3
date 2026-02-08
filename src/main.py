@@ -4,7 +4,7 @@ import yaml
 from ble_scanner import BLEScanner
 from audio_player import AudioPlayer
 from device_manager import get_tracked_devices
-
+from detective import Detective
 
 class UPLJingleSystem:
     def __init__(self, config_path: str = "./config.yaml"):
@@ -17,7 +17,7 @@ class UPLJingleSystem:
         )
         self.detective = Detective()
         self.ble_scanner = BLEScanner(self.detective)
-        
+
         self.running = False
 
     async def run(self):
