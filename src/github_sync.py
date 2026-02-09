@@ -11,6 +11,7 @@ Runs every 20 seconds:
 
 import json
 import subprocess
+import threading
 import time
 import os
 from datetime import datetime
@@ -132,21 +133,19 @@ def sync_cycle():
     git_push()
 
 
-def main():
+def main(shutdown_event: threading.Event):
     print("GitHub Sync Service started")
     print(f"  Sync interval: {SYNC_INTERVAL}s")
     print(f"  Pending window: {PENDING_WINDOW} minutes")
     print(f"  Pending file: {PENDING_JSON}")
     print(f"  Registrations file: {REGISTRATIONS}")
 
-    while True:
+    while not shutdown_event.is_set():
         try:
             sync_cycle()
         except Exception as e:
             print(f"Sync error: {e}")
+        
+        shutdown_event.wait(timeout=SYNC_INTERVAL)
 
-        time.sleep(SYNC_INTERVAL)
-
-
-if __name__ == "__main__":
-    main()
+    print("GitHub sync stopped")

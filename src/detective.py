@@ -40,35 +40,6 @@ class Device:
         with self.lock:
             return list(self.history)
 
-    # def plot_rssi_history(self):
-    #     history = self.get_history()
-
-    #     if len(history) == 0:
-    #         return
-    #     rssis = [rssi for rssi, _ in history]
-    #     timestamps = [ts for _, ts in history]
-
-    #     if len(timestamps) > 0:
-    #         first_time = timestamps[0]
-    #         time_seconds = [(ts - first_time).total_seconds() for ts in timestamps]
-    #     else:
-    #         return
-        
-    #     plt.figure(figsize=(12, 6))
-    #     plt.plot(time_seconds, rssis, marker='o', linestyle='-', markersize=3, linewidth=1)
-    #     plt.xlabel('Time (seconds)')
-    #     plt.ylabel('RSSI (dBm)')
-    #     plt.title(f'RSSI History - {self.name} ({self.mac})')
-    #     plt.grid(True, alpha=0.3)
-    #     plt.axhline(y=-70, color='orange', linestyle='--', alpha=0.5, label='Weak signal')
-    #     plt.axhline(y=-50, color='green', linestyle='--', alpha=0.5, label='Good signal')
-    #     plt.legend()
-    #     os.makedirs('plots', exist_ok=True)
-    #     safe_name = "".join(c for c in self.name if c.isalnum() or c in (' ', '-', '_')).strip()
-    #     filename = f'plots/{safe_name}_{self.mac.replace(":", "")}.png'
-    #     plt.savefig(filename, dpi=100, bbox_inches='tight')
-    #     plt.close()
-
 class Detective:
     def __init__(self):
         self.lock = threading.Lock()
@@ -206,7 +177,8 @@ class Detective:
         time.sleep(5)
 
         with self.lock:
-            self.tof_size -= 1
+            self.tof_size = max(self.tof_size-1, 0)
+        
         # GC will figure out who to kick in a bit
 
     def add_sighting(self, device: Device, rssi: int):

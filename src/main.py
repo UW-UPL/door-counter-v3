@@ -1,133 +1,45 @@
-import asyncio
-import signal
 import sys
-import yaml
-from ble_scanner import BLEScanner
-from audio_player import AudioPlayer
-from device_manager import get_tracked_devices
+import threading
+
 from detective import Detective
+import ble_scanner
+import bt_service
+import github_sync
 
-class UPLJingleSystem:
-    def __init__(self, config_path: str = "./config.yaml"):
-        with open(config_path, 'r') as f:
-            self.config = yaml.safe_load(f) or {}
-
-        self.audio_player = AudioPlayer(
-            default_sounds_dir=self.config.get('audio', {}).get('default_sounds_dir', './sounds/default'),
-            custom_sounds_dir=self.config.get('audio', {}).get('custom_sounds_dir', './sounds/custom')
-        )
-        self.detective = Detective()
-        self.ble_scanner = BLEScanner(self.detective)
-
-        self.running = False
-
-    async def run(self):
-        self.running = True
-
-        print("\n" + "="*50)
-        print("UPL Door Jingle System Starting...")
-        print("="*50 + "\n")
-
-        # Show tracked devices
-        tracked_devices = get_tracked_devices()
-        if tracked_devices:
-            print(f"Tracking {len(tracked_devices)} opted-in device(s):")
-            for device in tracked_devices:
-                print(f"  - {device['name']} ({device['mac']})")
-            print()
-        else:
-            print("No opted-in devices to track (need name + sound_file set)\n")
-
-        # Start BLE scanner
-        ble_task = asyncio.create_task(self.ble_scanner.start(), name="BLE")
-        keyboard_task = asyncio.create_task(self.keyboard_listener(), name="Keyboard")
-
-        print("All systems operational")
-        print("Press 'e' + Enter to simulate entrance, 'x' + Enter to simulate exit\n")
-
-        try:
-            await asyncio.gather(ble_task, keyboard_task)
-        except asyncio.CancelledError:
-            print("\nShutting down...")
-        finally:
-            await self.shutdown()
-
-    async def keyboard_listener(self):
-        """Listen for keyboard input to simulate ToF events"""
-        loop = asyncio.get_event_loop()
-        reader = asyncio.StreamReader()
-        protocol = asyncio.StreamReaderProtocol(reader)
-        await loop.connect_read_pipe(lambda: protocol, sys.stdin)
-
-        try:
-            while self.running:
-                try:
-                    line = await asyncio.wait_for(reader.readline(), timeout=0.5)
-                    key = line.decode().strip().lower()
-                    if key == 'e':
-                        print("\n[TEST] Simulating entrance...")
-                        self.detective.enter()
-                        print(f"[TEST] tof_size={self.detective.tof_size}, active_devices={[d.name for d in self.detective.active_devices]}\n")
-                    elif key == 'x':
-                        print("\n[TEST] Simulating exit...")
-                        self.detective.exit()
-                        print(f"[TEST] tof_size={self.detective.tof_size}, active_devices={[d.name for d in self.detective.active_devices]}\n")
-                except asyncio.TimeoutError:
-                    # No input, continue loop to check if we should still be running
-                    continue
-        except asyncio.CancelledError:
-            raise
-
-    async def shutdown(self):
-        print("Cleaning up...")
-        self.ble_scanner.stop()
-        self.audio_player.stop()
-        print("Shutdown complete")
+# tof_detector is not integrated yet - it has its own main() currently
 
 
 def main():
-    system = UPLJingleSystem()
+    shutdown_event = threading.Event()
+    detective = Detective()
 
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    
-    shutdown_initiated = False
+    threads = [
+        threading.Thread(target=ble_scanner.main, args=(detective, shutdown_event), name="ble_scanner"),
+        threading.Thread(target=bt_service.main, args=(shutdown_event,), name="bt_service"),
+        # threading.Thread(target=github_sync.main, args=(shutdown_event,), name="github_sync"),
+    ]
 
-    def signal_handler(sig, frame):
-        nonlocal shutdown_initiated
-        if shutdown_initiated:
-            return
-        shutdown_initiated = True
-
-        print("\nInterrupt received, shutting down...")
-        system.running = False
-
-        # Cancel all running tasks
-        for task in asyncio.all_tasks(loop):
-            task.cancel()
-
-        # Stop the event loop
-        loop.stop()
-
-    signal.signal(signal.SIGINT, signal_handler)
-    signal.signal(signal.SIGTERM, signal_handler)
+    for t in threads:
+        t.start()
+        print(f"Started {t.name}")
 
     try:
-        loop.run_until_complete(system.run())
+        while True:
+            for t in threads:
+                t.join(timeout=1.0)
+                if not t.is_alive() and not shutdown_event.is_set():
+                    print(f"WARNING: {t.name} died unexpectedly")
     except KeyboardInterrupt:
-        pass
-    finally:
-        # Cancel any remaining tasks
-        pending = asyncio.all_tasks(loop)
-        for task in pending:
-            task.cancel()
+        print("\nShutting down...")
+        shutdown_event.set()
 
-        # Run the loop one more time to let cancelled tasks finish
-        if pending:
-            loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+        for t in threads:
+            t.join(timeout=10.0)
+            if t.is_alive():
+                print(f"WARNING: {t.name} did not shut down cleanly")
 
-        loop.close()
-        print("\nGoodbye")
+        print("Shutdown complete")
+        sys.exit(0)
 
 
 if __name__ == "__main__":

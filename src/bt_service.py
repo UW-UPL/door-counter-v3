@@ -1,3 +1,4 @@
+import threading
 import dbus
 import dbus.service
 import dbus.mainloop.glib
@@ -65,7 +66,7 @@ class UPLAgent(dbus.service.Object):
         return  # Accept pairing
 
 
-def main():
+def main(shutdown_event: threading.Event):
     dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
     bus = dbus.SystemBus()
 
@@ -88,30 +89,33 @@ def main():
     agent_manager.RequestDefaultAgent(AGENT_PATH)
 
     main_loop = GLib.MainLoop()
+
+    def check_shutdown():
+        if shutdown_event.is_set():
+            main_loop.quit()
+            return False
+        return True
+
+    GLib.timeout_add(1000, check_shutdown)
+
     try:
         adapter_iface.StartDiscovery()
         print("Discovery started - waiting for devices to pair...\n")
         main_loop.run()
-    except KeyboardInterrupt:
-        print("\nStopping Bluetooth service...")
     finally:
         try:
             adapter_iface.StopDiscovery()
         except:
-            pass
+            print("ERROR: Could not stop discovery")
 
         try:
             adapter_props.Set("org.bluez.Adapter1", "Discoverable", dbus.Boolean(False))
         except:
-            pass
+            print("ERROR: Could not set discoverable to off")
 
         try:
             agent_manager.UnregisterAgent(AGENT_PATH)
         except:
-            pass
+            print("ERROR: Could not unregister agent in bt_service")
 
-        print("Cleanup complete")
-
-
-if __name__ == "__main__":
-    main()
+        print("Bluetooth service stopped")
