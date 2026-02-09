@@ -189,7 +189,7 @@ def calibrate(sensor, zone_centers, n_samples=20, timeout_s=10.0):
             averages.append(avg)
         else:
             logger.error("No readings! Using default 200cm")
-            averages.append(200.0)
+            averages.append(230.0)
 
     return averages
 
