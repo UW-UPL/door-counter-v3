@@ -1,7 +1,7 @@
 import asyncio
 import threading
 from bleak import BleakScanner
-from device_manager import get_tracked_devices
+from db_manager import get_tracked_devices
 from detective import Detective, Device
 
 CACHE_REFRESH_INTERVAL = 5  # seconds

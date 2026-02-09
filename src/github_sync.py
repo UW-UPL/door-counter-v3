@@ -15,7 +15,7 @@ import threading
 import time
 import os
 from datetime import datetime
-from device_manager import get_pending_devices, complete_device
+from db_manager import get_pending_devices, complete_device
 
 PENDING_JSON = "./data/pending.json"
 REGISTRATIONS = "./data/registrations.json"
