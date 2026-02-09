@@ -211,7 +211,7 @@ def play_sound(filepath):
         logger.error(f"Could not play {filepath}: {e}")
 
 # Main Logic
-def main(detective_holder: list, shutdown_event: threading.Event):
+def main(detective_holder: list, shutdown_event: threading.Event, args=None):
 
     # we need to wait for detective to be initialized
     # i dunno a better way to do this concurrently in Go
@@ -223,18 +223,20 @@ def main(detective_holder: list, shutdown_event: threading.Event):
 
     detective = detective_holder[0]
 
-    parser = argparse.ArgumentParser(description="UPL Doorbell People Counter")
-    parser.add_argument("--debug", action="store_true",
-                        help="Print every zone reading and state transition")
-    parser.add_argument("--no-audio", action="store_true",
-                        help="Disable sound playback")
-    parser.add_argument("--threshold", type=int, default=THRESHOLD_PERCENT,
-                        help=f"Threshold %% of floor distance (default: {THRESHOLD_PERCENT})")
-    parser.add_argument("--status-interval", type=float, default=0,
-                        help="Print periodic status every N seconds (0=off)")
-    parser.add_argument("--initial-count", type=int, default=0,
-                        help="Initial people count (default: 0)")
-    args = parser.parse_args([])
+    # If no args provided, parse with defaults
+    if args is None:
+        parser = argparse.ArgumentParser(description="UPL Doorbell People Counter")
+        parser.add_argument("--debug", action="store_true",
+                            help="Print every zone reading and state transition")
+        parser.add_argument("--no-audio", action="store_true",
+                            help="Disable sound playback")
+        parser.add_argument("--threshold", type=int, default=THRESHOLD_PERCENT,
+                            help=f"Threshold %% of floor distance (default: {THRESHOLD_PERCENT})")
+        parser.add_argument("--status-interval", type=float, default=0,
+                            help="Print periodic status every N seconds (0=off)")
+        parser.add_argument("--initial-count", type=int, default=0,
+                            help="Initial people count (default: 0)")
+        args = parser.parse_args([])
 
     audio_ok = False
     if not args.no_audio:

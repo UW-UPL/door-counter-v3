@@ -1,5 +1,6 @@
 import sys
 import threading
+import argparse
 
 import ble_scanner
 import bt_service
@@ -11,6 +12,20 @@ import logger
 def main():
     threading.current_thread().name = "main"
 
+    # Parse tof_detector arguments
+    parser = argparse.ArgumentParser(description="UPL Door Counter")
+    parser.add_argument("--debug", action="store_true",
+                        help="Print every zone reading and state transition")
+    parser.add_argument("--no-audio", action="store_true",
+                        help="Disable sound playback")
+    parser.add_argument("--threshold", type=int, default=80,
+                        help="Threshold %% of floor distance (default: 80)")
+    parser.add_argument("--status-interval", type=float, default=0,
+                        help="Print periodic status every N seconds (0=off)")
+    parser.add_argument("--initial-count", type=int, default=0,
+                        help="Initial people count (default: 0)")
+    args = parser.parse_args()
+
     shutdown_event = threading.Event()
     detective_holder = [None]
 
@@ -18,7 +33,7 @@ def main():
         threading.Thread(target=ble_scanner.main, args=(shutdown_event, detective_holder), name="ble_scanner"),
         threading.Thread(target=bt_service.main, args=(shutdown_event,), name="bt_service"),
         threading.Thread(target=github_sync.main, args=(shutdown_event,), name="github_sync"),
-        threading.Thread(target=tof_detector.main, args=(detective_holder, shutdown_event), name="tof_detector"),
+        threading.Thread(target=tof_detector.main, args=(detective_holder, shutdown_event, args), name="tof_detector"),
     ]
 
     for t in threads:
