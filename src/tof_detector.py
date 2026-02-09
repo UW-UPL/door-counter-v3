@@ -13,7 +13,7 @@ import logger
 
 # Config
 DISTANCE_MODE = 1
-TIMING_BUDGET_MS = 33 # ms per measurement per zone
+TIMING_BUDGET_MS = 15 # ms per measurement per zone
 ROI_WIDTH = 8 # SPADs wide per zone
 ROI_HEIGHT = 16 # SPADs tall per zone (should always be 16)
 ZONE_CENTERS = [167, 231]
@@ -218,6 +218,7 @@ def main(shutdown_event: threading.Event, args=None):
     # i dunno a better way to do this concurrently in Go
     #while detective_holder[0] is None and not shutdown_event.is_set():
     #    time.sleep(0.1)
+    # i dunno a better way to do this concurrently
 
     if shutdown_event.is_set():
         return
