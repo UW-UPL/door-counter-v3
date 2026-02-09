@@ -114,6 +114,11 @@ def main(shutdown_event: threading.Event):
             print("ERROR: Could not set discoverable to off")
 
         try:
+            adapter_props.Set("org.bluez.Adapter1", "Pairable", dbus.Boolean(True))
+        except:
+            print("ERROR: Could not set pairable to off")
+        
+        try:
             agent_manager.UnregisterAgent(AGENT_PATH)
         except:
             print("ERROR: Could not unregister agent in bt_service")
