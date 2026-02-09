@@ -33,117 +33,112 @@ class Detective:
     # returns the Device that was
     def enter(self) -> Device | None:
         with self.scanner.lock:
-            devices_snapshot = list(self.scanner.devices.items())
+            with self.lock:
+                self.tof_size += 1
 
-        with self.lock:
-            self.tof_size += 1
-            active_set_snapshot = self.active_set.copy()
+                #   Heuristic:
+                #
+                #   Recency bias: Devices that just sent a signal are considered more favorably
+                #
+                #   RSSI Trend: Someone walking in shows increasing RSSI
+                #
+                #   Absolute RSSI strength: Absolute RSSI is somewhat useful, but a fitness tracker
+                #           might produce significantly weaker signals than a phone purely because of hardware
+                #
+                #    Signal consistency: Due to how flakely BLE is, devices with
+                #           regular pings are more reliable candidates
+                #
+                #   All of these factors are weighted and compared to a score threshold.
+                #
+                #   The goal is to not choose false positives.
+                #   A device can later prove that it's inside the room. We have a thread that
+                #   periodically looks at devices and tries to refactor active_set based on up-to-date data
 
-        #   Heuristic:
-        #
-        #   Recency bias: Devices that just sent a signal are considered more favorably
-        #
-        #   RSSI Trend: Someone walking in shows increasing RSSI
-        #
-        #   Absolute RSSI strength: Absolute RSSI is somewhat useful, but a fitness tracker
-        #           might produce significantly weaker signals than a phone purely because of hardware
-        #
-        #    Signal consistency: Due to how flakely BLE is, devices with
-        #           regular pings are more reliable candidates
-        #
-        #   All of these factors are weighted and compared to a score threshold.
-        #
-        #   The goal is to not choose false positives.
-        #   A device can later prove that it's inside the room. We have a thread that
-        #   periodically looks at devices and tries to refactor active_set based on up-to-date data
+                now = datetime.now()
+                best_score = 0
+                candidate = None
 
-        # Process devices without holding the lock
-        now = datetime.now()
-        best_score = 0
-        candidate = None
+                MIN_SCORE_THRESHOLD = 0.30
 
-        MIN_SCORE_THRESHOLD = 0.30
+                WEIGHT_RECENCY = 0.10
+                WEIGHT_TREND = 0.30
+                WEIGHT_RSSI = 0.40
+                WEIGHT_CONSISTENCY = 0.20
 
-        WEIGHT_RECENCY = 0.10
-        WEIGHT_TREND = 0.30
-        WEIGHT_RSSI = 0.40
-        WEIGHT_CONSISTENCY = 0.20
+                for mac, device in self.scanner.devices.items():
+                    logger.log(f"ANALYZING DEVICE: {mac} | {device.name}")
 
-        for mac, device in devices_snapshot:
-            logger.log(f"ANALYZING DEVICE: {mac} | {device.name}")
+                    if device in self.active_set:
+                        continue
 
-            if device in active_set_snapshot:
-                continue
+                    history = device.get_history()
+                    if len(history) == 0:
+                        continue
 
-            history = device.get_history()
-            if len(history) == 0:
-                continue
+                    # RECENCY BIAS
+                    _, latest_time = history[-1]
+                    seconds_ago = (now - latest_time).total_seconds()
+                        # exponential decay
+                        # e^(-1) = 0.36
+                    recency_score = np.exp(-(seconds_ago / 15.0))
 
-            # RECENCY BIAS
-            _, latest_time = history[-1]
-            seconds_ago = (now - latest_time).total_seconds()
-                # exponential decay
-                # e^(-1) = 0.36
-            recency_score = np.exp(-(seconds_ago / 15.0))
+                    # RSSI TREND
+                    trend_score = 0.5 # default of 0.5 (neutral)
+                    time_window = timedelta(seconds=30)
+                    recent_readings = []
+                    for rssi, ts in history:
+                        if now - ts <= time_window:
+                            recent_readings.append((rssi, ts))
 
-            # RSSI TREND
-            trend_score = 0.5 # default of 0.5 (neutral)
-            time_window = timedelta(seconds=30)
-            recent_readings = []
-            for rssi, ts in history:
-                if now - ts <= time_window:
-                    recent_readings.append((rssi, ts))
+                    if len(recent_readings) >= 3: # only try to analyze trend if we have enough readings
+                        rssis, timestamps = zip(*recent_readings)
+                        t0 = timestamps[0]
+                        times = []
+                        for ts in timestamps:
+                            times.append((ts - t0).total_seconds())
 
-            if len(recent_readings) >= 3: # only try to analyze trend if we have enough readings
-                rssis, timestamps = zip(*recent_readings)
-                t0 = timestamps[0]
-                times = []
-                for ts in timestamps:
-                    times.append((ts - t0).total_seconds())
+                        # Linear regression ahhh
+                        # cov(time, rssi) / var(time)
+                        time_variance = np.var(times)
+                        if time_variance > 0:
+                            slope = np.cov(times, rssis)[0, 1] / time_variance
+                            trend_score = np.clip(0.5 + slope / 4.0, 0, 1)
 
-                # Linear regression ahhh
-                # cov(time, rssi) / var(time)
-                time_variance = np.var(times)
-                if time_variance > 0:
-                    slope = np.cov(times, rssis)[0, 1] / time_variance
-                    trend_score = np.clip(0.5 + slope / 4.0, 0, 1)
+                    # ABSOLUTE RSSI
+                        # between -30 and -90
+                        # (MEAN_RECENT-(-90)) / ((−30)−(−90))
+                    # Use last 3 readings from history
+                    recent_rssis = [rssi for rssi, _ in history[-3:]]
+                    scaled = (np.mean(recent_rssis) - (-90)) / ((-30)-(-90))
+                    rssi_score = np.clip(scaled, 0, 1)
 
-            # ABSOLUTE RSSI
-                # between -30 and -90
-                # (MEAN_RECENT-(-90)) / ((−30)−(−90))
-            # Use last 3 readings from history
-            recent_rssis = [rssi for rssi, _ in history[-3:]]
-            scaled = (np.mean(recent_rssis) - (-90)) / ((-30)-(-90))
-            rssi_score = np.clip(scaled, 0, 1)
+                    # SIGNAL CONSISTENCY
+                    consistency_score = 0.5 # default
+                    recent = []
+                    # filter to last 30 seconds
+                    for rssi, time in history:
+                        if (now - time).total_seconds() <= 30:
+                            recent.append((rssi, time))
 
-            # SIGNAL CONSISTENCY
-            consistency_score = 0.5 # default
-            recent = []
-            # filter to last 30 seconds
-            for rssi, time in history:
-                if (now - time).total_seconds() <= 30:
-                    recent.append((rssi, time))
+                    if len(recent) >= 2:
+                        expected_pings = 20
+                        actual_pings = len(recent)
+                        consistency_score = np.clip(actual_pings / expected_pings, 0, 1)
 
-            if len(recent) >= 2:
-                expected_pings = 20
-                actual_pings = len(recent)
-                consistency_score = np.clip(actual_pings / expected_pings, 0, 1)
+                    total = WEIGHT_RECENCY * recency_score + WEIGHT_TREND * trend_score + WEIGHT_RSSI * rssi_score + WEIGHT_CONSISTENCY * consistency_score
 
-            total = WEIGHT_RECENCY * recency_score + WEIGHT_TREND * trend_score + WEIGHT_RSSI * rssi_score + WEIGHT_CONSISTENCY * consistency_score
+                    logger.log(f"Score for {device.name}: {total}")
 
-            logger.log(f"Score for {device.name}: {total}")
+                    if total > best_score and total > MIN_SCORE_THRESHOLD:
+                        best_score = total
+                        candidate = device
 
-            if total > best_score and total > MIN_SCORE_THRESHOLD:
-                best_score = total
-                candidate = device
-        
-        with self.lock:
-            if candidate is not None and candidate not in self.active_set:
-                self.active_set.add(candidate)
+                if candidate is not None:
+                    self.active_set.add(candidate)
 
-        return candidate
+                #  if len(self.active_set) > self.tof_size: GC will figure it out
 
-        #  if len(self.active_set) > self.tof_size: GC will figure it out
+                return candidate
     
     # called by ToF when it detects an exit
     def exit(self):
