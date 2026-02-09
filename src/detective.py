@@ -45,8 +45,6 @@ class Detective:
                 #   Absolute RSSI strength: Absolute RSSI is somewhat useful, but a fitness tracker
                 #           might produce significantly weaker signals than a phone purely because of hardware
                 #
-                #    Signal consistency: Due to how flakely BLE is, devices with
-                #           regular pings are more reliable candidates
                 #
                 #   All of these factors are weighted and compared to a score threshold.
                 #
@@ -63,15 +61,22 @@ class Detective:
                 WEIGHT_RECENCY = 0.10
                 WEIGHT_TREND = 0.30
                 WEIGHT_RSSI = 0.40
-                WEIGHT_CONSISTENCY = 0.20
 
                 for mac, device in self.scanner.devices.items():
                     logger.log(f"ANALYZING DEVICE: {mac} | {device.name}")
 
                     if device in self.active_set:
                         continue
-
-                    history = device.get_history()
+                    
+                    # full history can contain stale data from previous presence,
+                    # truncate to the last 60 seconds
+                    full_history = device.get_history()
+                    history = []
+                    for rssi, ts in full_history:
+                        if (now - ts).total_seconds() <= 60:
+                            history.append((rssi, ts))
+                    
+                    # if there was no history in the last 60 seconds, do not consider the device
                     if len(history) == 0:
                         continue
 
@@ -84,14 +89,9 @@ class Detective:
 
                     # RSSI TREND
                     trend_score = 0.5 # default of 0.5 (neutral)
-                    time_window = timedelta(seconds=30)
-                    recent_readings = []
-                    for rssi, ts in history:
-                        if now - ts <= time_window:
-                            recent_readings.append((rssi, ts))
 
-                    if len(recent_readings) >= 3: # only try to analyze trend if we have enough readings
-                        rssis, timestamps = zip(*recent_readings)
+                    if len(history) >= 5: # only try to analyze trend if we have enough readings
+                        rssis, timestamps = zip(*history)
                         t0 = timestamps[0]
                         times = []
                         for ts in timestamps:
@@ -112,20 +112,7 @@ class Detective:
                     scaled = (np.mean(recent_rssis) - (-90)) / ((-30)-(-90))
                     rssi_score = np.clip(scaled, 0, 1)
 
-                    # SIGNAL CONSISTENCY
-                    consistency_score = 0.5 # default
-                    recent = []
-                    # filter to last 30 seconds
-                    for rssi, time in history:
-                        if (now - time).total_seconds() <= 30:
-                            recent.append((rssi, time))
-
-                    if len(recent) >= 2:
-                        expected_pings = 20
-                        actual_pings = len(recent)
-                        consistency_score = np.clip(actual_pings / expected_pings, 0, 1)
-
-                    total = WEIGHT_RECENCY * recency_score + WEIGHT_TREND * trend_score + WEIGHT_RSSI * rssi_score + WEIGHT_CONSISTENCY * consistency_score
+                    total = WEIGHT_RECENCY * recency_score + WEIGHT_TREND * trend_score + WEIGHT_RSSI * rssi_score
 
                     logger.log(f"Score for {device.name}: {total}")
 
@@ -209,5 +196,107 @@ class Detective:
         pass
 
     def score(self, device: Device):
-        # black box for generating a in-room score for a device
-        return 0
+        now = datetime.now()
+
+        # truncate to last 10 minutes
+        full_history = device.get_history()
+        history = []
+        for rssi, ts in full_history:
+            if (now - ts).total_seconds() <= 600:
+                history.append((rssi, ts))
+
+        if len(history) == 0:
+            return 0.0
+
+        #   Heuristic: While the enter heuristic tries to capture devices that have just walked in, 
+        #       the score heuristic operates over a longer time window and tries to find devices that
+        #       weren't added to the active set during enter, but provide sufficient evidence that
+        #       they are in the room later. It also attempts to detect people who have walked away
+        #       (negative RSSI trend) or were walking towards (positive RSSI trend) the room.
+        #
+        #   Consistency: Over the last 10 minutes have we seen a signal every minute from the device?
+        #
+        #   Strength: If we have seen signals, how strong are they?
+        #   
+        #   RSSI Trend: Has a device been seen walking away (lesser score) or walking towards (greater score)
+        #       the room some time during the 10 minute window?
+        #
+        #   All of these factors are weighted and compared to a score threshold.
+        
+        WEIGHT_CONSISTENCY = 0.35
+        WEIGHT_STRENGTH = 0.35
+        WEIGHT_TREND = 0.30
+
+        # RSSI TREND
+        #   The person either ended their RSSI signals by walking away at some point
+        #   during the time window, or they had walked towards the room inside the
+        #   time window.
+
+        trend_score = 0.5
+
+        def compute_slope(readings):
+            if len(readings) < 5:
+                return 0.0
+            rssis, timestamps = zip(*readings)
+            t0 = timestamps[0]
+            times = [(ts - t0).total_seconds() for ts in timestamps]
+            time_variance = np.var(times)
+            if time_variance > 0:
+                return np.cov(times, rssis)[0, 1] / time_variance
+            return 0.0
+
+        # Check the final 30 seconds before the last reading for negative slope (walking away)
+        if len(history) > 0:
+            last_reading_time = history[-1][1]
+            last_30s = []
+            for r, ts in history:
+                if (last_reading_time - ts).total_seconds() <= 30:
+                    last_30s.append((r, ts))
+            away_slope = compute_slope(last_30s)
+        else:
+            away_slope = 0.0
+
+        # Check sliding 30 second windows for max positive slope (walking towards)
+        max_towards_slope = 0.0
+        for window_start in range(0, 570, 10):
+            window = []
+            for r, ts in history:
+                seconds_ago = (now - ts).total_seconds()
+                if window_start <= seconds_ago <= window_start + 30:
+                    window.append((r, ts))
+
+            if len(window) >= 5:
+                slope = compute_slope(window)
+                if slope > max_towards_slope:
+                    max_towards_slope = slope
+
+        # Walking away at end dominates
+        SLOPE_THRESHOLD = 0.6 # dBm/sec
+        if away_slope < -SLOPE_THRESHOLD: # penalize (normalize slope to 0-0.5 range)
+            trend_score = np.clip(0.5 + away_slope / 4.0, 0, 0.5)
+        elif max_towards_slope > SLOPE_THRESHOLD: # boost (normalize slope to 0.5-1.0 range)
+            trend_score = np.clip(0.5 + max_towards_slope / 4.0, 0.5, 1.0)
+
+        bins = [[] for _ in range(10)]
+        for rssi, ts in history:
+            seconds_ago = (now - ts).total_seconds()
+            bin_idx = int(seconds_ago // 60)
+            if bin_idx < 10:
+                bins[bin_idx].append(rssi)
+        
+        bin_means = []
+        for b in bins:
+            if len(b) > 0:
+                bin_means.append(np.mean(b))
+
+        # CONSISTENCY
+        consistency = len(bin_means) / 10
+
+        # STRENGTH
+        strength = 0.0
+        if len(bin_means) > 0:
+            avg_rssi = np.mean(bin_means)
+            strength = (avg_rssi - (-90)) / ((-30) - (-90))
+            strength = np.clip(strength, 0, 1)
+
+        return WEIGHT_CONSISTENCY * consistency + WEIGHT_STRENGTH * strength + WEIGHT_TREND * trend_score
