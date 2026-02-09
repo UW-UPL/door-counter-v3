@@ -167,7 +167,9 @@ class Detective:
             # ABSOLUTE RSSI
                 # between -30 and -90
                 # (MEAN_RECENT-(-90)) / ((−30)−(−90))
-            scaled = (np.mean(rssis[-3]) - (-90)) / ((-30)-(-90))
+            # Use last 3 readings from history
+            recent_rssis = [rssi for rssi, _ in history[-3:]]
+            scaled = (np.mean(recent_rssis) - (-90)) / ((-30)-(-90))
             rssi_score = np.clip(scaled, 0, 1)
 
             # SIGNAL CONSISTENCY
