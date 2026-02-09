@@ -6,6 +6,10 @@ from datetime import datetime, timedelta
 import numpy as np
 import time
 
+#   LOCK ORDERING:
+#       detective lock -> device lock
+
+
 class Device:
     MAX_HISTORY = 100
 
@@ -15,14 +19,18 @@ class Device:
         self.sound_file = sound_file
         self.share_presence = share_presence
 
+        self.lock = threading.Lock()
+
         # [(rssi, timestamps), (rssi, timestamp), ...]
         self.history = deque()
 
     def add_signal(self, rssi):
-        self.history.append((rssi, datetime.now()))
+        with self.lock:
+            self.history.append((rssi, datetime.now()))
 
     def get_history(self):
-        return self.history
+        with self.lock:
+            return list(self.history)
 
 class Detective:
     def __init__(self):
@@ -43,10 +51,12 @@ class Detective:
         self._gc_thread.start()
 
     # called by ToF when it detects an entrance
-    def enter(self):
-        self.lock.acquire()
-
-        self.tof_size += 1
+    # returns the Device that was
+    def enter(self) -> Device | None:
+        with self.lock:
+            self.tof_size += 1
+            devices_snapshot = list(self.devices.items())
+            active_devices_snapshot = self.active_devices.copy()
 
         #   Heuristic:
         #
@@ -54,18 +64,19 @@ class Detective:
         #
         #   RSSI Trend: Someone walking in shows increasing RSSI
         #
-        #   Absolute RSSI strength: Absolute RSSI is somewhat useful, but a fitness tracker 
+        #   Absolute RSSI strength: Absolute RSSI is somewhat useful, but a fitness tracker
         #           might produce significantly weaker signals than a phone purely because of hardware
         #
-        #    Signal consistency: Due to how flakely BLE is, devices with 
-        #           regular pings are more reliable candidates 
+        #    Signal consistency: Due to how flakely BLE is, devices with
+        #           regular pings are more reliable candidates
         #
         #   All of these factors are weighted and compared to a score threshold.
         #
         #   The goal is to not choose false positives.
         #   A device can later prove that it's inside the room. We have a thread that
         #   periodically looks at devices and tries to refactor active_devices based on up-to-date data
-        
+
+        # Process devices without holding the lock
         now = datetime.now()
         best_score = 0
         candidate = None
@@ -77,15 +88,15 @@ class Detective:
         WEIGHT_RSSI = 0.20
         WEIGHT_CONSISTENCY = 0.10
 
-        for mac, device in self.devices.items():
+        for mac, device in devices_snapshot:
             print("ANALYZING DEVICE")
             print(mac)
-            if device in self.active_devices:
+            if device in active_devices_snapshot:
                 continue
 
             history = device.get_history()
             if len(history) == 0:
-                continue 
+                continue
 
             # RECENCY BIAS
             _, latest_time = history[-1]
@@ -107,15 +118,15 @@ class Detective:
                 t0 = timestamps[0]
                 times = []
                 for ts in timestamps:
-                    times.append((ts - t0).total_seconds()) 
-                
+                    times.append((ts - t0).total_seconds())
+
                 # Linear regression ahhh
                 # cov(time, rssi) / var(time)
                 time_variance = np.var(times)
                 if time_variance > 0:
                     slope = np.cov(times, rssis)[0, 1] / time_variance
                     trend_score = np.clip(0.5 + slope / 4.0, 0, 1)
-            
+
             # ABSOLUTE RSSI
                 # between -30 and -90
                 # (MEAN_RECENT-(-90)) / ((−30)−(−90))
@@ -129,12 +140,12 @@ class Detective:
             for rssi, time in history:
                 if (now - time).total_seconds() <= 30:
                     recent.append((rssi, time))
-            
+
             if len(recent) >= 2:
                 expected_pings = 20
                 actual_pings = len(recent)
                 consistency_score = np.clip(actual_pings / expected_pings, 0, 1)
-            
+
             total = WEIGHT_RECENCY * recency_score + WEIGHT_TREND * trend_score + WEIGHT_RSSI * rssi_score + WEIGHT_CONSISTENCY * consistency_score
 
             print(total)
@@ -142,10 +153,11 @@ class Detective:
                 best_score = total
                 candidate = device
         
-        if candidate != None:
-            self.active_devices.append(candidate)
+        with self.lock:
+            if candidate is not None and candidate not in self.active_devices:
+                self.active_devices.append(candidate)
 
-        self.lock.release()
+        return candidate
 
         #  if len(self.active_devices) > self.tof_size: GC will figure it out
     
@@ -154,17 +166,17 @@ class Detective:
         # give some time for the person to walk away
         time.sleep(5)
 
-        self.lock.acquire()
-        self.tof_size -= 1
-        self.lock.release()
+        with self.lock:
+            self.tof_size -= 1
         # GC will figure out who to kick in a bit
 
     def add_sighting(self, device: Device, rssi: int):
-        if device.mac in self.devices:
-            device.add_signal(rssi)
-        else:
-            self.devices[device.mac] = device
-            device.add_signal(rssi)
+        with self.lock:
+            if device.mac in self.devices:
+                device.add_signal(rssi)
+            else:
+                self.devices[device.mac] = device
+                device.add_signal(rssi)
     
     
     def _gc_loop(self):
