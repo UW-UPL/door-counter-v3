@@ -2,35 +2,49 @@ import asyncio
 import threading
 from bleak import BleakScanner
 from db_manager import get_tracked_devices
-from detective import Detective, Device
+from device import Device
 import logger
+from detective import Detective
 
 CACHE_REFRESH_INTERVAL = 5  # seconds
 
 
 class BLEScanner:
-    def __init__(self, detective: Detective, shutdown_event: threading.Event):
+    def __init__(self, shutdown_event: threading.Event):
         self.running = False
-        self.detective = detective
+        self.detective = Detective(self)
         self.shutdown_event = shutdown_event
 
         # all tracked devices from database
         # refreshes periodically
+        self.lock = threading.Lock()
         self.devices = {}
 
+    
+    # periodically refresh from database
     async def refresh_cache(self):
-        """periodically refresh cache from database"""
         while self.running:
             tracked = get_tracked_devices()
-            for d in tracked:
-                mac = d["mac"]
-                if mac in self.devices:
-                    device = self.devices[mac]
-                    device.name = d["name"]
-                    device.sound_file = d["sound_file"]
-                    device.share_presence = d["share_presence"]
-                else:
-                    self.devices[mac] = Device(mac, d["name"], d["sound_file"], d["share_presence"])
+            tracked_macs = set(d["mac"] for d in tracked)
+
+            with self.lock:
+                # Update existing / add new devices
+                for d in tracked:
+                    mac = d["mac"]
+                    if mac in self.devices:
+                        device = self.devices[mac]
+                        device.name = d["name"]
+                        device.sound_file = d["sound_file"]
+                        device.share_presence = d["share_presence"]
+                    else:
+                        self.devices[mac] = Device(mac, d["name"], d["sound_file"], d["share_presence"])
+
+                # Remove devices no longer in database
+                removed_macs = set(self.devices.keys()) - tracked_macs
+                for mac in removed_macs:
+                    del self.devices[mac]
+                    logger.log(f"Removed device {mac} from tracking")
+
             await asyncio.sleep(CACHE_REFRESH_INTERVAL)
 
     async def start(self):
@@ -39,9 +53,12 @@ class BLEScanner:
 
         def callback(ble_device, advertisement_data):
             mac = ble_device.address.upper()
-            if mac in self.devices:
-                logger.debug(f"{self.devices[mac].name} {advertisement_data.rssi}")
-                self.detective.add_sighting(self.devices[mac], advertisement_data.rssi)
+            with self.lock:
+                device = self.devices.get(mac)
+
+            if device is not None:
+                logger.debug(f"{device.name} {advertisement_data.rssi}")
+                device.add_signal(advertisement_data.rssi)
 
         refresh_task = asyncio.create_task(self.refresh_cache())
 
@@ -59,6 +76,7 @@ class BLEScanner:
             logger.log("BLE scanner stopped")
 
 
-def main(detective: Detective, shutdown_event: threading.Event):
-    scanner = BLEScanner(detective, shutdown_event)
+def main(shutdown_event: threading.Event, detective_holder: list):
+    scanner = BLEScanner(shutdown_event)
+    detective_holder[0] = scanner.detective
     asyncio.run(scanner.start())

@@ -1,70 +1,43 @@
-import os
 import threading
-from collections import deque
-from dataclasses import dataclass
 from datetime import datetime, timedelta
 import numpy as np
 import time
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
+import logger
+from device import Device
+from ble_scanner import BLEScanner
 
 #   LOCK ORDERING:
-#       detective lock -> device lock
+#       scanner lock -> detective lock -> device lock
 
+#   its really easy to circular lock the scanner and detective 😭
 
-class Device:
-    MAX_HISTORY = 100
-
-    def __init__(self, mac: str, name: str, sound_file: str, share_presence: bool):
-        self.mac = mac
-        self.name = name
-        self.sound_file = sound_file
-        self.share_presence = share_presence
-
-        self.lock = threading.Lock()
-
-        # [(rssi, timestamps), (rssi, timestamp), ...]
-        self.history = deque()
-
-    def add_signal(self, rssi):
-        with self.lock:
-            self.history.append((rssi, datetime.now()))
-            # Keep history bounded
-            if len(self.history) > self.MAX_HISTORY:
-                self.history.popleft()
-        
-        # self.plot_rssi_history()
-
-    def get_history(self):
-        with self.lock:
-            return list(self.history)
 
 class Detective:
-    def __init__(self):
+    def __init__(self, scanner: BLEScanner):
         self.lock = threading.Lock()
 
-        # all devices that we have recently observed
-        # mac -> Device()
-        self.devices = {}
+        # Reference to BLEScanner (set by scanner's __init__)
+        self.scanner = scanner
 
         # number of devices that the tof sensor thinks is in the room
         self.tof_size = 0
 
         # devices that the detective thinks are currently in the room
-        self.active_devices = []
+        self.active_set = set()
 
         self._running = True
-        self._gc_thread = threading.Thread(target=self._gc_loop,  daemon=True)
+        self._gc_thread = threading.Thread(target=self._gc_loop, daemon=True)
         self._gc_thread.start()
 
     # called by ToF when it detects an entrance
     # returns the Device that was
     def enter(self) -> Device | None:
+        with self.scanner.lock:
+            devices_snapshot = list(self.scanner.devices.items())
+
         with self.lock:
             self.tof_size += 1
-            devices_snapshot = list(self.devices.items())
-            active_devices_snapshot = self.active_devices.copy()
+            active_set_snapshot = self.active_set.copy()
 
         #   Heuristic:
         #
@@ -82,7 +55,7 @@ class Detective:
         #
         #   The goal is to not choose false positives.
         #   A device can later prove that it's inside the room. We have a thread that
-        #   periodically looks at devices and tries to refactor active_devices based on up-to-date data
+        #   periodically looks at devices and tries to refactor active_set based on up-to-date data
 
         # Process devices without holding the lock
         now = datetime.now()
@@ -91,15 +64,15 @@ class Detective:
 
         MIN_SCORE_THRESHOLD = 0.30
 
-        WEIGHT_RECENCY = 0.35
-        WEIGHT_TREND = 0.35
-        WEIGHT_RSSI = 0.20
-        WEIGHT_CONSISTENCY = 0.10
+        WEIGHT_RECENCY = 0.10
+        WEIGHT_TREND = 0.30
+        WEIGHT_RSSI = 0.40
+        WEIGHT_CONSISTENCY = 0.20
 
         for mac, device in devices_snapshot:
-            print("ANALYZING DEVICE")
-            print(mac)
-            if device in active_devices_snapshot:
+            logger.log(f"ANALYZING DEVICE: {mac} | {device.name}")
+
+            if device in active_set_snapshot:
                 continue
 
             history = device.get_history()
@@ -158,18 +131,19 @@ class Detective:
 
             total = WEIGHT_RECENCY * recency_score + WEIGHT_TREND * trend_score + WEIGHT_RSSI * rssi_score + WEIGHT_CONSISTENCY * consistency_score
 
-            print(total)
+            logger.log(f"Score for {device.name}: {total}")
+
             if total > best_score and total > MIN_SCORE_THRESHOLD:
                 best_score = total
                 candidate = device
         
         with self.lock:
-            if candidate is not None and candidate not in self.active_devices:
-                self.active_devices.append(candidate)
+            if candidate is not None and candidate not in self.active_set:
+                self.active_set.add(candidate)
 
         return candidate
 
-        #  if len(self.active_devices) > self.tof_size: GC will figure it out
+        #  if len(self.active_set) > self.tof_size: GC will figure it out
     
     # called by ToF when it detects an exit
     def exit(self):
@@ -181,31 +155,64 @@ class Detective:
         
         # GC will figure out who to kick in a bit
 
-    def add_sighting(self, device: Device, rssi: int):
-        with self.lock:
-            if device.mac in self.devices:
-                device.add_signal(rssi)
-            else:
-                self.devices[device.mac] = device
-                device.add_signal(rssi)
-    
-    
     def _gc_loop(self):
         #   runs every 5 seconds
-        #   
-        # if len(active_devices) > tof_size:
-        #   score all active devices based on "in-room" confidence heuristic
-        #   remove the lowest scoring devices until len == tof_size
-        #
-        # if len(active_devices) < tof_size:
-        #   score all non-active devices
-        #   promote the highest-scoring devices until len == tof_size
-        #   only promote if the score > threshold, otherwise we can leave slot empty (unknown person)
-        #
+
+        while self._running:
+            time.sleep(5)
+
+            # for easier reasoning, we hold all the locks while we gc
+            with self.scanner.lock:
+                with self.lock:
+                    # edge case, if a device is deleted from the scanner's set (likely due to it being deleted from DB)
+                    #   we should also remove it from active set
+                    tracked_devices = set(self.scanner.devices.values())
+                    self.active_set &= tracked_devices
+
+                    # active set is too large
+                    if len(self.active_set) > self.tof_size:
+                        scores = []
+                        for device in self.active_set:
+                            s = self.score(device)
+                            scores.append((device, s))
+
+                        scores.sort(key=lambda tup: tup[1], reverse=True) # desc
+
+                        while len(self.active_set) > self.tof_size:
+                            device, _ = scores.pop()
+                            self.active_set.remove(device)
+
+                    # active set is too small, try to promote a device
+                    if len(self.active_set) < self.tof_size:
+                        scores = []
+                        for device in list(self.scanner.devices.values()):
+                            if device not in self.active_set:
+                                s = self.score(device)
+                                scores.append((device, s))
+
+                        scores.sort(key=lambda tup: tup[1]) # asc
+
+                        while len(self.active_set) < self.tof_size:
+                            if len(scores) == 0:
+                                break
+
+                            device, s = scores.pop()
+                            if s < 0.5: # some threshold we will probably change later
+                                break
+
+                            self.active_set.add(device)
+
+                    # replace phase?
+            
         # always do replace phase (even if sizes match):
         #   find the lowest scoring active device
         #   find the highest scoring non-active device (if any)
         #   if non-active score >> actiive score, swap them
         #   this handles when wrong devices are added or a better candidate emerged
-
+        #
+        # get rid of devices from self.devices that are a bit old (must not be in active_set)
         pass
+
+    def score(self, device: Device):
+        # black box for generating a in-room score for a device
+        return 0

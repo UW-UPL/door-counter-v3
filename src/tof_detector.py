@@ -6,9 +6,9 @@ import board
 import adafruit_vl53l1x
 import pygame
 from collections import deque
-from detective import Detective
 import threading
 import logger
+from detective import Detective
 
 # Config
 DISTANCE_MODE = 2
@@ -211,7 +211,18 @@ def play_sound(filepath):
         logger.error(f"Could not play {filepath}: {e}")
 
 # Main Logic
-def main(detective: Detective, shutdown_event: threading.Event):
+def main(detective_holder: list, shutdown_event: threading.Event):
+
+    # we need to wait for detective to be initialized
+    # i dunno a better way to do this concurrently in Go
+    while detective_holder[0] is None and not shutdown_event.is_set():
+        time.sleep(0.1)
+
+    if shutdown_event.is_set():
+        return
+
+    detective = detective_holder[0]
+
     parser = argparse.ArgumentParser(description="UPL Doorbell People Counter")
     parser.add_argument("--debug", action="store_true",
                         help="Print every zone reading and state transition")
