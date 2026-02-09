@@ -3,8 +3,10 @@ from datetime import datetime, timedelta
 import numpy as np
 import time
 import logger
+from typing import TYPE_CHECKING
 from device import Device
-from ble_scanner import BLEScanner
+if TYPE_CHECKING:
+	from ble_scanner import BLEScanner
 
 #   LOCK ORDERING:
 #       scanner lock -> detective lock -> device lock
@@ -13,7 +15,7 @@ from ble_scanner import BLEScanner
 
 
 class Detective:
-    def __init__(self, scanner: BLEScanner):
+    def __init__(self, scanner: "BLEScanner"):
         self.lock = threading.Lock()
 
         # Reference to BLEScanner (set by scanner's __init__)
