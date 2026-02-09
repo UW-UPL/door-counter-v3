@@ -66,7 +66,7 @@ class BLEScanner:
             async with BleakScanner(callback):
                 logger.log("BLE scanner active - tracking devices")
                 while self.running and not self.shutdown_event.is_set():
-                    await asyncio.sleep(0.1)
+                    await asyncio.sleep(0.5)
         finally:
             refresh_task.cancel()
             try:

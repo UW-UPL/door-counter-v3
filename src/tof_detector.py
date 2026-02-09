@@ -214,9 +214,9 @@ def play_sound(filepath):
 def main(detective_holder: list, shutdown_event: threading.Event, args=None):
 
     # we need to wait for detective to be initialized
-    # i dunno a better way to do this concurrently in Go
+    # i dunno a better way to do this concurrently
     while detective_holder[0] is None and not shutdown_event.is_set():
-        time.sleep(0.1)
+        time.sleep(0.05)
 
     if shutdown_event.is_set():
         return
