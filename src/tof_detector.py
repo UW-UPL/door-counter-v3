@@ -8,6 +8,7 @@ import pygame
 from collections import deque
 from detective import Detective
 import threading
+import logger
 
 # Config
 DISTANCE_MODE = 2
@@ -152,7 +153,7 @@ def calibrate(sensor, zone_centers, n_samples=20, timeout_s=10.0):
     zone_names = ["COMMONS (zone 0)", "UPL (zone 1)"]
 
     for z, center in enumerate(zone_centers):
-        print(f"  Measuring {zone_names[z]} (center={center})...")
+        logger.log(f"Measuring {zone_names[z]} (center={center})...")
         sensor.roi_center = center
         time.sleep(0.01)
         if sensor.data_ready:
@@ -164,7 +165,7 @@ def calibrate(sensor, zone_centers, n_samples=20, timeout_s=10.0):
 
         while len(readings) < n_samples:
             if time.time() - start > timeout_s:
-                print(f"    WARNING: Timeout after {len(readings)} samples")
+                logger.warn(f"Timeout after {len(readings)} samples")
                 break
 
             reading_start = time.time()
@@ -184,11 +185,10 @@ def calibrate(sensor, zone_centers, n_samples=20, timeout_s=10.0):
 
         if readings:
             avg = sum(readings) / len(readings)
-            print(f"    Got {len(readings)} samples: "
-                  f"avg={avg:.1f}cm, min={min(readings)}cm, max={max(readings)}cm")
+            logger.log(f"Got {len(readings)} samples: avg={avg:.1f}cm, min={min(readings)}cm, max={max(readings)}cm")
             averages.append(avg)
         else:
-            print(f"    ERROR: No readings! Using default 200cm")
+            logger.error("No readings! Using default 200cm")
             averages.append(200.0)
 
     return averages
@@ -197,10 +197,10 @@ def calibrate(sensor, zone_centers, n_samples=20, timeout_s=10.0):
 def init_audio():
     try:
         pygame.mixer.init()
-        print("Audio Setup!")
+        logger.log("Audio initialized")
         return True
     except Exception as e:
-        print(f"Audio FAILED: {e}")
+        logger.error(f"Audio init failed: {e}")
         return False
 
 def play_sound(filepath):
@@ -208,7 +208,7 @@ def play_sound(filepath):
         pygame.mixer.music.load(filepath)
         pygame.mixer.music.play()
     except Exception as e:
-        print(f"Could not play {filepath}: {e}")
+        logger.error(f"Could not play {filepath}: {e}")
 
 # Main Logic
 def main(detective: Detective, shutdown_event: threading.Event):
@@ -229,7 +229,7 @@ def main(detective: Detective, shutdown_event: threading.Event):
     if not args.no_audio:
         audio_ok = init_audio()
 
-    print("Initializing VL53L1X sensor...")
+    logger.log("Initializing VL53L1X sensor...")
     i2c = board.I2C()
     sensor = adafruit_vl53l1x.VL53L1X(i2c)
 
@@ -238,21 +238,18 @@ def main(detective: Detective, shutdown_event: threading.Event):
     sensor.roi_xy = (ROI_WIDTH, ROI_HEIGHT)
 
     sensor.start_ranging()
-    print(f"Sensor configured: mode={DISTANCE_MODE}, "
-          f"budget={TIMING_BUDGET_MS}ms, ROI={ROI_WIDTH}x{ROI_HEIGHT}")
+    logger.log(f"Sensor configured: mode={DISTANCE_MODE}, budget={TIMING_BUDGET_MS}ms, ROI={ROI_WIDTH}x{ROI_HEIGHT}")
 
-    print("\n" + "=" * 50)
-    print("CALIBRATING — Keep the doorway CLEAR!")
-    print("=" * 50)
+    logger.log("=" * 40)
+    logger.log("CALIBRATING - Keep the doorway CLEAR!")
+    logger.log("=" * 40)
     floor_distances = calibrate(sensor, ZONE_CENTERS, CALIBRATION_SAMPLES)
     threshold_pct = args.threshold / 100.0
     thresholds = [d * threshold_pct for d in floor_distances]
 
-    print(f"\nFloor distances: zone0={floor_distances[0]:.1f}cm, "
-          f"zone1={floor_distances[1]:.1f}cm")
-    print(f"Thresholds ({args.threshold}%): "
-          f"zone0={thresholds[0]:.1f}cm, zone1={thresholds[1]:.1f}cm")
-    print(f"Min threshold: {MIN_THRESHOLD_CM}cm")
+    logger.log(f"Floor distances: zone0={floor_distances[0]:.1f}cm, zone1={floor_distances[1]:.1f}cm")
+    logger.log(f"Thresholds ({args.threshold}%): zone0={thresholds[0]:.1f}cm, zone1={thresholds[1]:.1f}cm")
+    logger.log(f"Min threshold: {MIN_THRESHOLD_CM}cm")
 
     counter = PeopleCounter(thresholds[0], thresholds[1], detective, MIN_THRESHOLD_CM)
     counter.people_count = args.initial_count
@@ -265,14 +262,13 @@ def main(detective: Detective, shutdown_event: threading.Event):
         _ = sensor.distance
         sensor.clear_interrupt()
 
-    print("\n" + "=" * 50)
-    print("PEOPLE COUNTER ACTIVE")
+    logger.log("=" * 40)
+    logger.log("PEOPLE COUNTER ACTIVE")
     if args.initial_count > 0:
-        print(f"Starting count: {args.initial_count}")
+        logger.log(f"Starting count: {args.initial_count}")
     if args.debug:
-        print("DEBUG MODE ON — showing all readings")
-    print("Press Ctrl+C to stop")
-    print("=" * 50 + "\n")
+        logger.log("DEBUG MODE ON - showing all readings")
+    logger.log("=" * 40)
     last_status_time = time.time()
     # Main Loop
     try:
@@ -312,8 +308,8 @@ def main(detective: Detective, shutdown_event: threading.Event):
 
                 result = counter.process(filtered, current_zone)
                 if result == 1:
-                    print(f">>> ENTRY detected! Room count: {counter.people_count}")
-                    
+                    logger.log(f">>> ENTRY detected! Room count: {counter.people_count}")
+
                     # enter will return the candidate device that it thinks has entered the room
                     # will either be of type Device or None
                     device = counter.detective.enter()
@@ -321,7 +317,7 @@ def main(detective: Detective, shutdown_event: threading.Event):
                     if audio_ok:
                         play_sound(ENTRY_SOUND)
                 elif result == -1:
-                    print(f"<<< EXIT detected!  Room count: {counter.people_count}")
+                    logger.log(f"<<< EXIT detected! Room count: {counter.people_count}")
 
                     # exit doesn't return anything, it just lets the detective
                     # know that an exit happened
@@ -338,19 +334,18 @@ def main(detective: Detective, shutdown_event: threading.Event):
 
             if counter.check_timeout(CROSSING_TIMEOUT_S):
                 if args.debug:
-                    print("  [TIMEOUT] Crossing abandoned, state machine reset")
+                    logger.debug("Crossing abandoned, state machine reset")
 
             if args.status_interval > 0:
                 now = time.time()
                 if now - last_status_time > args.status_interval:
-                    print(f"[STATUS] Count: {counter.people_count} | "
-                          f"Zone distances: commons={filters[0].buf[-1] if filters[0].buf else '?'}cm, "
-                          f"upl={filters[1].buf[-1] if filters[1].buf else '?'}cm")
+                    logger.log(f"[STATUS] Count: {counter.people_count} | "
+                               f"commons={filters[0].buf[-1] if filters[0].buf else '?'}cm, "
+                               f"upl={filters[1].buf[-1] if filters[1].buf else '?'}cm")
                     last_status_time = now
 
     finally:
         sensor.stop_ranging()
-        print("\n" + "=" * 50)
-        print("ToF detector stopped")
-        print(f"  Final room count: {counter.people_count}")
-        print("=" * 50)
+        logger.log("=" * 40)
+        logger.log(f"ToF detector stopped. Final count: {counter.people_count}")
+        logger.log("=" * 40)

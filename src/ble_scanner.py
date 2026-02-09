@@ -3,6 +3,7 @@ import threading
 from bleak import BleakScanner
 from db_manager import get_tracked_devices
 from detective import Detective, Device
+import logger
 
 CACHE_REFRESH_INTERVAL = 5  # seconds
 
@@ -34,19 +35,19 @@ class BLEScanner:
 
     async def start(self):
         self.running = True
-        print("Starting BLE scanner...")
+        logger.log("Starting BLE scanner...")
 
         def callback(ble_device, advertisement_data):
             mac = ble_device.address.upper()
             if mac in self.devices:
-                print(self.devices[mac].name, advertisement_data.rssi)
+                logger.debug(f"{self.devices[mac].name} {advertisement_data.rssi}")
                 self.detective.add_sighting(self.devices[mac], advertisement_data.rssi)
 
         refresh_task = asyncio.create_task(self.refresh_cache())
 
         try:
             async with BleakScanner(callback):
-                print("BLE scanner active - tracking devices")
+                logger.log("BLE scanner active - tracking devices")
                 while self.running and not self.shutdown_event.is_set():
                     await asyncio.sleep(0.1)
         finally:
@@ -55,7 +56,7 @@ class BLEScanner:
                 await refresh_task
             except asyncio.CancelledError:
                 pass
-            print("BLE scanner stopped")
+            logger.log("BLE scanner stopped")
 
 
 def main(detective: Detective, shutdown_event: threading.Event):

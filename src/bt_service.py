@@ -4,6 +4,7 @@ import dbus.service
 import dbus.mainloop.glib
 from gi.repository import GLib
 from db_manager import add_pending_device
+import logger
 
 AGENT_INTERFACE = "org.bluez.Agent1"
 AGENT_PATH = "/upl/agent"
@@ -23,7 +24,7 @@ class UPLAgent(dbus.service.Object):
             device = self.bus.get_object("org.bluez", device_path)
             device.Disconnect(dbus_interface="org.bluez.Device1")
         except Exception as e:
-            print(f"Error disconnecting {device_path}: {e}")
+            logger.error(f"Disconnecting {device_path}: {e}")
 
     def _accept_and_watch(self, device):
         if device in self.pending_devices:
@@ -59,9 +60,7 @@ class UPLAgent(dbus.service.Object):
         add_pending_device(mac, str(passkey))
         self._accept_and_watch(device)
 
-        print(f"\nNEW DEVICE PAIRED:")
-        print(f"  MAC: {mac}")
-        print(f"  Passkey: {passkey}\n")
+        logger.log(f"NEW DEVICE PAIRED: MAC={mac} Passkey={passkey}")
 
         return  # Accept pairing
 
@@ -74,11 +73,11 @@ def main(shutdown_event: threading.Event):
     adapter_props = dbus.Interface(adapter, "org.freedesktop.DBus.Properties")
     adapter_iface = dbus.Interface(adapter, "org.bluez.Adapter1")
 
-    print("Setting up Bluetooth adapter...")
+    logger.log("Setting up Bluetooth adapter...")
     adapter_props.Set("org.bluez.Adapter1", "Powered", dbus.Boolean(True))
     adapter_props.Set("org.bluez.Adapter1", "Discoverable", dbus.Boolean(True))
     adapter_props.Set("org.bluez.Adapter1", "Pairable", dbus.Boolean(True))
-    print("Adapter ready - discoverable and pairable")
+    logger.log("Adapter ready - discoverable and pairable")
 
     agent = UPLAgent(bus, AGENT_PATH)
     agent_manager = dbus.Interface(
@@ -100,27 +99,27 @@ def main(shutdown_event: threading.Event):
 
     try:
         adapter_iface.StartDiscovery()
-        print("Discovery started - waiting for devices to pair...\n")
+        logger.log("Discovery started - waiting for devices to pair...")
         main_loop.run()
     finally:
         try:
             adapter_iface.StopDiscovery()
         except:
-            print("ERROR: Could not stop discovery")
+            logger.error("Could not stop discovery")
 
         try:
             adapter_props.Set("org.bluez.Adapter1", "Discoverable", dbus.Boolean(False))
         except:
-            print("ERROR: Could not set discoverable to off")
+            logger.error("Could not set discoverable to off")
 
         try:
             adapter_props.Set("org.bluez.Adapter1", "Pairable", dbus.Boolean(True))
         except:
-            print("ERROR: Could not set pairable to off")
-        
+            logger.error("Could not set pairable to off")
+
         try:
             agent_manager.UnregisterAgent(AGENT_PATH)
         except:
-            print("ERROR: Could not unregister agent in bt_service")
+            logger.error("Could not unregister agent")
 
-        print("Bluetooth service stopped")
+        logger.log("Bluetooth service stopped")

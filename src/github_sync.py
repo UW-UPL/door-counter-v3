@@ -16,6 +16,7 @@ import time
 import os
 from datetime import datetime
 from db_manager import get_pending_devices, complete_device
+import logger
 
 PENDING_JSON = "./data/pending.json"
 REGISTRATIONS = "./data/registrations.json"
@@ -54,11 +55,11 @@ def process_registrations():
         share_presence = reg.get("share_presence", False)
 
         if not all([passkey, paired_at, name]):
-            print(f"Skipping incomplete registration: {reg}")
+            logger.warn(f"Skipping incomplete registration: {reg}")
             continue
 
         if complete_device(passkey, paired_at, name, sound_file, share_presence):
-            print(f"Completed device: {name} ({passkey})")
+            logger.log(f"Completed device: {name} ({passkey})")
             processed += 1
 
     return processed
@@ -73,11 +74,11 @@ def git_pull():
             timeout=30
         )
         if result.returncode != 0:
-            print(f"Git pull failed: {result.stderr}")
+            logger.error(f"Git pull failed: {result.stderr}")
             return False
         return True
     except Exception as e:
-        print(f"Git pull error: {e}")
+        logger.error(f"Git pull error: {e}")
         return False
 
 
@@ -108,44 +109,41 @@ def git_push():
         return True
 
     except subprocess.CalledProcessError as e:
-        print(f"Git push failed: {e}")
+        logger.error(f"Git push failed: {e}")
         return False
     except Exception as e:
-        print(f"Git error: {e}")
+        logger.error(f"Git error: {e}")
         return False
 
 
 def sync_cycle():
-    print(f"\n[{datetime.now().strftime('%H:%M:%S')}] Starting sync cycle...")
+    logger.debug(f"Starting sync cycle...")
 
     # Pull latest (gets new registrations)
     if git_pull():
         # Process any new registrations
         processed = process_registrations()
         if processed:
-            print(f"Processed {processed} registration(s)")
+            logger.log(f"Processed {processed} registration(s)")
 
     # Export current pending devices
     count = export_pending()
-    print(f"Exported {count} pending device(s)")
+    logger.debug(f"Exported {count} pending device(s)")
 
     # Push updates
     git_push()
 
 
 def main(shutdown_event: threading.Event):
-    print("GitHub Sync Service started")
-    print(f"  Sync interval: {SYNC_INTERVAL}s")
-    print(f"  Pending window: {PENDING_WINDOW} minutes")
-    print(f"  Pending file: {PENDING_JSON}")
-    print(f"  Registrations file: {REGISTRATIONS}")
+    logger.log("GitHub Sync Service started")
+    logger.log(f"  Sync interval: {SYNC_INTERVAL}s, Pending window: {PENDING_WINDOW} min")
 
     while not shutdown_event.is_set():
         try:
             sync_cycle()
         except Exception as e:
-            print(f"Sync error: {e}")
-        
+            logger.error(f"Sync error: {e}")
+
         shutdown_event.wait(timeout=SYNC_INTERVAL)
 
-    print("GitHub sync stopped")
+    logger.log("GitHub sync stopped")
