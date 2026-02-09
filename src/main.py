@@ -59,17 +59,24 @@ class UPLJingleSystem:
         protocol = asyncio.StreamReaderProtocol(reader)
         await loop.connect_read_pipe(lambda: protocol, sys.stdin)
 
-        while self.running:
-            line = await reader.readline()
-            key = line.decode().strip().lower()
-            if key == 'e':
-                print("\n[TEST] Simulating entrance...")
-                self.detective.enter()
-                print(f"[TEST] tof_size={self.detective.tof_size}, active_devices={[d.name for d in self.detective.active_devices]}\n")
-            elif key == 'x':
-                print("\n[TEST] Simulating exit...")
-                self.detective.exit()
-                print(f"[TEST] tof_size={self.detective.tof_size}, active_devices={[d.name for d in self.detective.active_devices]}\n")
+        try:
+            while self.running:
+                try:
+                    line = await asyncio.wait_for(reader.readline(), timeout=0.5)
+                    key = line.decode().strip().lower()
+                    if key == 'e':
+                        print("\n[TEST] Simulating entrance...")
+                        self.detective.enter()
+                        print(f"[TEST] tof_size={self.detective.tof_size}, active_devices={[d.name for d in self.detective.active_devices]}\n")
+                    elif key == 'x':
+                        print("\n[TEST] Simulating exit...")
+                        self.detective.exit()
+                        print(f"[TEST] tof_size={self.detective.tof_size}, active_devices={[d.name for d in self.detective.active_devices]}\n")
+                except asyncio.TimeoutError:
+                    # No input, continue loop to check if we should still be running
+                    continue
+        except asyncio.CancelledError:
+            raise
 
     async def shutdown(self):
         print("Cleaning up...")
@@ -83,11 +90,24 @@ def main():
 
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
+    
+    shutdown_initiated = False
 
     def signal_handler(sig, frame):
-        print("\nInterrupt received...")
+        nonlocal shutdown_initiated
+        if shutdown_initiated:
+            return
+        shutdown_initiated = True
+
+        print("\nInterrupt received, shutting down...")
+        system.running = False
+
+        # Cancel all running tasks
         for task in asyncio.all_tasks(loop):
             task.cancel()
+
+        # Stop the event loop
+        loop.stop()
 
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
@@ -97,6 +117,15 @@ def main():
     except KeyboardInterrupt:
         pass
     finally:
+        # Cancel any remaining tasks
+        pending = asyncio.all_tasks(loop)
+        for task in pending:
+            task.cancel()
+
+        # Run the loop one more time to let cancelled tasks finish
+        if pending:
+            loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+
         loop.close()
         print("\nGoodbye")
 
