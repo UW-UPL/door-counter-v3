@@ -6,6 +6,8 @@ import board
 import adafruit_vl53l1x
 import pygame
 from collections import deque
+from detective import Detective
+import threading
 
 # Config
 DISTANCE_MODE = 2
@@ -71,7 +73,7 @@ STATE_NAMES = {
 ZONE_NAMES = ["COMMONS", "UPL"]
 
 class PeopleCounter:
-    def __init__(self, threshold_z0_cm: float, threshold_z1_cm: float, min_threshold_cm: float = 0):
+    def __init__(self, threshold_z0_cm: float, threshold_z1_cm: float, detective: Detective, min_threshold_cm: float = 0):
         self.thresholds = [threshold_z0_cm, threshold_z1_cm]
         self.min_threshold = min_threshold_cm
         self.path_track = [0, 0, 0, 0]
@@ -79,6 +81,7 @@ class PeopleCounter:
         self.prev_status = [NOBODY, NOBODY]
         self.people_count = 0
         self.crossing_start_time = 0.0
+        self.detective = detective
 
     def process(self, distance_cm: float, zone: int) -> int:
         if (distance_cm is not None
@@ -208,7 +211,7 @@ def play_sound(filepath):
         print(f"Could not play {filepath}: {e}")
 
 # Main Logic
-def main():
+def main(detective: Detective, shutdown_event: threading.Event):
     parser = argparse.ArgumentParser(description="UPL Doorbell People Counter")
     parser.add_argument("--debug", action="store_true",
                         help="Print every zone reading and state transition")
@@ -220,7 +223,7 @@ def main():
                         help="Print periodic status every N seconds (0=off)")
     parser.add_argument("--initial-count", type=int, default=0,
                         help="Initial people count (default: 0)")
-    args = parser.parse_args()
+    args = parser.parse_args([])
 
     audio_ok = False
     if not args.no_audio:
@@ -251,7 +254,7 @@ def main():
           f"zone0={thresholds[0]:.1f}cm, zone1={thresholds[1]:.1f}cm")
     print(f"Min threshold: {MIN_THRESHOLD_CM}cm")
 
-    counter = PeopleCounter(thresholds[0], thresholds[1], MIN_THRESHOLD_CM)
+    counter = PeopleCounter(thresholds[0], thresholds[1], detective, MIN_THRESHOLD_CM)
     counter.people_count = args.initial_count
     filters = [MinDistFilter(MIN_DIST_FILTER_SIZE),
                MinDistFilter(MIN_DIST_FILTER_SIZE)]
@@ -273,7 +276,7 @@ def main():
     last_status_time = time.time()
     # Main Loop
     try:
-        while True:
+        while not shutdown_event.is_set():
             if sensor.data_ready:
                 raw = sensor.distance
                 sensor.clear_interrupt()
@@ -310,11 +313,19 @@ def main():
                 result = counter.process(filtered, current_zone)
                 if result == 1:
                     print(f">>> ENTRY detected! Room count: {counter.people_count}")
-                    # TODO: Call the BLE Detective HERE to determine ID
+                    
+                    # enter will return the candidate device that it thinks has entered the room
+                    # will either be of type Device or None
+                    device = counter.detective.enter()
+
                     if audio_ok:
                         play_sound(ENTRY_SOUND)
                 elif result == -1:
                     print(f"<<< EXIT detected!  Room count: {counter.people_count}")
+
+                    # exit doesn't return anything, it just lets the detective
+                    # know that an exit happened
+                    counter.detective.exit()
 
                 next_zone = 1 - current_zone
                 sensor.roi_center = ZONE_CENTERS[next_zone]
@@ -337,12 +348,9 @@ def main():
                           f"upl={filters[1].buf[-1] if filters[1].buf else '?'}cm")
                     last_status_time = now
 
-    except KeyboardInterrupt:
+    finally:
         sensor.stop_ranging()
         print("\n" + "=" * 50)
-        print("STOPPED")
+        print("ToF detector stopped")
         print(f"  Final room count: {counter.people_count}")
         print("=" * 50)
-
-if __name__ == "__main__":
-    main()
