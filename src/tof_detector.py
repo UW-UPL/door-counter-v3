@@ -212,7 +212,7 @@ def play_sound(filepath):
         logger.error(f"Could not play {filepath}: {e}")
 
 # Main Logic
-def main(detective_holder: List[Detective], shutdown_event: threading.Event, args=None):
+def main(detective_holder: list[Detective], shutdown_event: threading.Event, args=None):
 
     # we need to wait for detective to be initialized
     # i dunno a better way to do this concurrently
