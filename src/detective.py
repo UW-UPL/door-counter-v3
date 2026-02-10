@@ -2,6 +2,7 @@ import threading
 from datetime import datetime, timedelta
 import numpy as np
 import time
+import heapq
 import logger
 from typing import TYPE_CHECKING
 from device import Device
@@ -132,7 +133,7 @@ class Detective:
     # called by ToF when it detects an exit
     def exit(self):
         # give some time for the person to walk away
-        time.sleep(5)
+        time.sleep(10)
 
         with self.lock:
             self.tof_size = max(self.tof_size-1, 0)
@@ -140,11 +141,117 @@ class Detective:
         # GC will figure out who to kick in a bit
 
     def _gc_loop(self):
-        #   runs every 5 seconds
 
+        def score(device: Device):
+            now = datetime.now()
+
+            # truncate to last 10 minutes
+            full_history = device.get_history()
+            history = []
+            for rssi, ts in full_history:
+                if (now - ts).total_seconds() <= 600:
+                    history.append((rssi, ts))
+
+            if len(history) == 0:
+                return 0.0
+
+            #   Heuristic: While the enter heuristic tries to capture devices that have just walked in, 
+            #       the score heuristic operates over a longer time window and tries to find devices that
+            #       weren't added to the active set during enter, but provide sufficient evidence that
+            #       they are in the room later. It also attempts to detect people who have walked away
+            #       (negative RSSI trend) or were walking towards (positive RSSI trend) the room.
+            #
+            #   Consistency: Over the last 10 minutes have we seen a signal every minute from the device?
+            #
+            #   Strength: If we have seen signals, how strong are they?
+            #   
+            #   RSSI Trend: Has a device been seen walking away (lesser score) or walking towards (greater score)
+            #       the room some time during the 10 minute window?
+            #
+            #   All of these factors are weighted and compared to a score threshold.
+            
+            WEIGHT_CONSISTENCY = 0.35
+            WEIGHT_STRENGTH = 0.35
+            WEIGHT_TREND = 0.30
+
+            # RSSI TREND
+            #   The person either ended their RSSI signals by walking away at some point
+            #   during the time window, or they had walked towards the room inside the
+            #   time window.
+
+            trend_score = 0.5
+
+            def compute_slope(readings):
+                if len(readings) < 5:
+                    return 0.0
+                rssis, timestamps = zip(*readings)
+                t0 = timestamps[0]
+                times = [(ts - t0).total_seconds() for ts in timestamps]
+                time_variance = np.var(times)
+                if time_variance > 0:
+                    return np.cov(times, rssis)[0, 1] / time_variance
+                return 0.0
+
+            # Check the final 30 seconds before the last reading for negative slope (walking away)
+            if len(history) > 0:
+                last_reading_time = history[-1][1]
+                last_30s = []
+                for r, ts in history:
+                    if (last_reading_time - ts).total_seconds() <= 30:
+                        last_30s.append((r, ts))
+                away_slope = compute_slope(last_30s)
+            else:
+                away_slope = 0.0
+
+            # Check sliding 30 second windows for max positive slope (walking towards)
+            max_towards_slope = 0.0
+            for window_start in range(0, 570, 10):
+                window = []
+                for r, ts in history:
+                    seconds_ago = (now - ts).total_seconds()
+                    if window_start <= seconds_ago <= window_start + 30:
+                        window.append((r, ts))
+
+                if len(window) >= 5:
+                    slope = compute_slope(window)
+                    if slope > max_towards_slope:
+                        max_towards_slope = slope
+
+            # Walking away at end dominates
+            SLOPE_THRESHOLD = 0.6 # dBm/sec
+            if away_slope < -SLOPE_THRESHOLD: # penalize (normalize slope to 0-0.5 range)
+                trend_score = np.clip(0.5 + away_slope / 4.0, 0, 0.5)
+            elif max_towards_slope > SLOPE_THRESHOLD: # boost (normalize slope to 0.5-1.0 range)
+                trend_score = np.clip(0.5 + max_towards_slope / 4.0, 0.5, 1.0)
+
+            bins = [[] for _ in range(10)]
+            for rssi, ts in history:
+                seconds_ago = (now - ts).total_seconds()
+                bin_idx = int(seconds_ago // 60)
+                if bin_idx < 10:
+                    bins[bin_idx].append(rssi)
+            
+            bin_means = []
+            for b in bins:
+                if len(b) > 0:
+                    bin_means.append(np.mean(b))
+
+            # CONSISTENCY
+            consistency = len(bin_means) / 10
+
+            # STRENGTH
+            strength = 0.0
+            if len(bin_means) > 0:
+                avg_rssi = np.mean(bin_means)
+                strength = (avg_rssi - (-90)) / ((-30) - (-90))
+                strength = np.clip(strength, 0, 1)
+
+            return WEIGHT_CONSISTENCY * consistency + WEIGHT_STRENGTH * strength + WEIGHT_TREND * trend_score
+
+
+        #  runs every 5 seconds
         while self._running:
             time.sleep(5)
-
             # for easier reasoning, we hold all the locks while we gc
             with self.scanner.lock:
                 with self.lock:
@@ -153,152 +260,66 @@ class Detective:
                     tracked_devices = set(self.scanner.devices.values())
                     self.active_set &= tracked_devices
 
+                    device_scores = {device: score(device) for device in tracked_devices}
+
                     # active set is too large
                     if len(self.active_set) > self.tof_size:
-                        scores = []
-                        for device in self.active_set:
-                            s = self.score(device)
-                            scores.append((device, s))
-
-                        scores.sort(key=lambda tup: tup[1], reverse=True) # desc
+                        active_heap = [(device_scores[device], device) for device in self.active_set]
+                        heapq.heapify(active_heap)
 
                         while len(self.active_set) > self.tof_size:
-                            device, _ = scores.pop()
+                            _, device = heapq.heappop(active_heap)
                             self.active_set.remove(device)
 
-                    # active set is too small, try to promote a device
+                    # active set is too small
                     if len(self.active_set) < self.tof_size:
-                        scores = []
-                        for device in list(self.scanner.devices.values()):
-                            if device not in self.active_set:
-                                s = self.score(device)
-                                scores.append((device, s))
-
-                        scores.sort(key=lambda tup: tup[1]) # asc
+                        non_active_heap = [(-device_scores[device], device) for device in tracked_devices if device not in self.active_set]
+                        heapq.heapify(non_active_heap)
 
                         while len(self.active_set) < self.tof_size:
-                            if len(scores) == 0:
+                            if len(non_active_heap) == 0:
                                 break
 
-                            device, s = scores.pop()
-                            if s < 0.5: # some threshold we will probably change later
+                            neg_score, device = heapq.heappop(non_active_heap)
+                            score = -neg_score
+                            if score < 0.5: # some threshold we will probably change later
                                 break
 
                             self.active_set.add(device)
 
-                    # replace phase?
-            
-        # always do replace phase (even if sizes match):
-        #   find the lowest scoring active device
-        #   find the highest scoring non-active device (if any)
-        #   if non-active score >> actiive score, swap them
-        #   this handles when wrong devices are added or a better candidate emerged
-        #
-        # get rid of devices from self.devices that are a bit old (must not be in active_set)
-        pass
+                    # replacement phase always runs
+                    #   keep swapping lowest active with highest non active while significantly better
+                    if len(self.active_set) > 0:
+                        # min heap for active devices
+                        active_heap = [(device_scores[device], device) for device in self.active_set]
+                        
+                        heapq.heapify(active_heap)
 
-    def score(self, device: Device):
-        now = datetime.now()
+                        # max heap for non active devices
+                        non_active_heap = [(-device_scores[device], device) for device in tracked_devices if device not in self.active_set]
+                        heapq.heapify(non_active_heap)
 
-        # truncate to last 10 minutes
-        full_history = device.get_history()
-        history = []
-        for rssi, ts in full_history:
-            if (now - ts).total_seconds() <= 600:
-                history.append((rssi, ts))
+                        REPLACEMENT_THRESHOLD = 0.10
 
-        if len(history) == 0:
-            return 0.0
+                        while len(active_heap) > 0 and len(non_active_heap) > 0:
+                            min_active_score, min_active_device = active_heap[0]
+                            neg_max_non_active_score, max_non_active_device = non_active_heap[0]
+                            max_non_active_score = -neg_max_non_active_score
 
-        #   Heuristic: While the enter heuristic tries to capture devices that have just walked in, 
-        #       the score heuristic operates over a longer time window and tries to find devices that
-        #       weren't added to the active set during enter, but provide sufficient evidence that
-        #       they are in the room later. It also attempts to detect people who have walked away
-        #       (negative RSSI trend) or were walking towards (positive RSSI trend) the room.
-        #
-        #   Consistency: Over the last 10 minutes have we seen a signal every minute from the device?
-        #
-        #   Strength: If we have seen signals, how strong are they?
-        #   
-        #   RSSI Trend: Has a device been seen walking away (lesser score) or walking towards (greater score)
-        #       the room some time during the 10 minute window?
-        #
-        #   All of these factors are weighted and compared to a score threshold.
-        
-        WEIGHT_CONSISTENCY = 0.35
-        WEIGHT_STRENGTH = 0.35
-        WEIGHT_TREND = 0.30
+                            # Swap if non active score is significantly better
+                            if max_non_active_score > min_active_score + REPLACEMENT_THRESHOLD:
+                                # Remove from heaps
+                                heapq.heappop(active_heap)
+                                heapq.heappop(non_active_heap)
 
-        # RSSI TREND
-        #   The person either ended their RSSI signals by walking away at some point
-        #   during the time window, or they had walked towards the room inside the
-        #   time window.
+                                # Update active set
+                                self.active_set.remove(min_active_device)
+                                self.active_set.add(max_non_active_device)
 
-        trend_score = 0.5
+                                logger.log(f"Replaced {min_active_device.name} (score: {min_active_score:.2f}) " f"with {max_non_active_device.name} (score: {max_non_active_score:.2f})")
 
-        def compute_slope(readings):
-            if len(readings) < 5:
-                return 0.0
-            rssis, timestamps = zip(*readings)
-            t0 = timestamps[0]
-            times = [(ts - t0).total_seconds() for ts in timestamps]
-            time_variance = np.var(times)
-            if time_variance > 0:
-                return np.cov(times, rssis)[0, 1] / time_variance
-            return 0.0
-
-        # Check the final 30 seconds before the last reading for negative slope (walking away)
-        if len(history) > 0:
-            last_reading_time = history[-1][1]
-            last_30s = []
-            for r, ts in history:
-                if (last_reading_time - ts).total_seconds() <= 30:
-                    last_30s.append((r, ts))
-            away_slope = compute_slope(last_30s)
-        else:
-            away_slope = 0.0
-
-        # Check sliding 30 second windows for max positive slope (walking towards)
-        max_towards_slope = 0.0
-        for window_start in range(0, 570, 10):
-            window = []
-            for r, ts in history:
-                seconds_ago = (now - ts).total_seconds()
-                if window_start <= seconds_ago <= window_start + 30:
-                    window.append((r, ts))
-
-            if len(window) >= 5:
-                slope = compute_slope(window)
-                if slope > max_towards_slope:
-                    max_towards_slope = slope
-
-        # Walking away at end dominates
-        SLOPE_THRESHOLD = 0.6 # dBm/sec
-        if away_slope < -SLOPE_THRESHOLD: # penalize (normalize slope to 0-0.5 range)
-            trend_score = np.clip(0.5 + away_slope / 4.0, 0, 0.5)
-        elif max_towards_slope > SLOPE_THRESHOLD: # boost (normalize slope to 0.5-1.0 range)
-            trend_score = np.clip(0.5 + max_towards_slope / 4.0, 0.5, 1.0)
-
-        bins = [[] for _ in range(10)]
-        for rssi, ts in history:
-            seconds_ago = (now - ts).total_seconds()
-            bin_idx = int(seconds_ago // 60)
-            if bin_idx < 10:
-                bins[bin_idx].append(rssi)
-        
-        bin_means = []
-        for b in bins:
-            if len(b) > 0:
-                bin_means.append(np.mean(b))
-
-        # CONSISTENCY
-        consistency = len(bin_means) / 10
-
-        # STRENGTH
-        strength = 0.0
-        if len(bin_means) > 0:
-            avg_rssi = np.mean(bin_means)
-            strength = (avg_rssi - (-90)) / ((-30) - (-90))
-            strength = np.clip(strength, 0, 1)
-
-        return WEIGHT_CONSISTENCY * consistency + WEIGHT_STRENGTH * strength + WEIGHT_TREND * trend_score
+                                # swapped devices now switch heaps
+                                heapq.heappush(non_active_heap, (-min_active_score, min_active_device))
+                                heapq.heappush(active_heap, (max_non_active_score, max_non_active_device))
+                            else:
+                                break
