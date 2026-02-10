@@ -75,7 +75,7 @@ STATE_NAMES = {
 ZONE_NAMES = ["COMMONS", "UPL"]
 
 class PeopleCounter:
-    def __init__(self, threshold_z0_cm: float, threshold_z1_cm: float, min_threshold_cm: float = 0):
+    def __init__(self, detective: Detective, threshold_z0_cm: float, threshold_z1_cm: float, min_threshold_cm: float = 0):
         self.thresholds = [threshold_z0_cm, threshold_z1_cm]
         self.min_threshold = min_threshold_cm
         self.path_track = [0, 0, 0, 0]
@@ -83,7 +83,7 @@ class PeopleCounter:
         self.prev_status = [NOBODY, NOBODY]
         self.people_count = 0
         self.crossing_start_time = 0.0
-        #self.detective = detective
+        self.detective = detective
 
     def process(self, distance_cm: float, zone: int) -> int:
         if (distance_cm is not None
@@ -265,7 +265,7 @@ def main(detective_holder: list[Detective], shutdown_event: threading.Event, arg
     logger.log(f"Thresholds ({args.threshold}%): zone0={thresholds[0]:.1f}cm, zone1={thresholds[1]:.1f}cm")
     logger.log(f"Min threshold: {MIN_THRESHOLD_CM}cm")
 
-    counter = PeopleCounter(thresholds[0], thresholds[1], MIN_THRESHOLD_CM)
+    counter = PeopleCounter(detective, thresholds[0], thresholds[1], MIN_THRESHOLD_CM)
     counter.people_count = args.initial_count
     filters = [MinDistFilter(MIN_DIST_FILTER_SIZE),
                MinDistFilter(MIN_DIST_FILTER_SIZE)]
