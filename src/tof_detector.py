@@ -8,7 +8,8 @@ import pygame
 from collections import deque
 import threading
 import logger
-from detective import Detective
+
+#from detective import Detective
 
 # Config
 DISTANCE_MODE = 2
@@ -75,7 +76,7 @@ STATE_NAMES = {
 ZONE_NAMES = ["COMMONS", "UPL"]
 
 class PeopleCounter:
-    def __init__(self, threshold_z0_cm: float, threshold_z1_cm: float, detective: Detective, min_threshold_cm: float = 0):
+    def __init__(self, threshold_z0_cm: float, threshold_z1_cm: float, min_threshold_cm: float = 0):
         self.thresholds = [threshold_z0_cm, threshold_z1_cm]
         self.min_threshold = min_threshold_cm
         self.path_track = [0, 0, 0, 0]
@@ -83,7 +84,7 @@ class PeopleCounter:
         self.prev_status = [NOBODY, NOBODY]
         self.people_count = 0
         self.crossing_start_time = 0.0
-        self.detective = detective
+        #self.detective = detective
 
     def process(self, distance_cm: float, zone: int) -> int:
         if (distance_cm is not None
@@ -212,17 +213,18 @@ def play_sound(filepath):
         logger.error(f"Could not play {filepath}: {e}")
 
 # Main Logic
-def main(detective_holder: list, shutdown_event: threading.Event, args=None):
+def main(shutdown_event: threading.Event, args=None):
 
     # we need to wait for detective to be initialized
+    # i dunno a better way to do this concurrently in Go
+    #while detective_holder[0] is None and not shutdown_event.is_set():
+    #    time.sleep(0.1)
     # i dunno a better way to do this concurrently
-    while detective_holder[0] is None and not shutdown_event.is_set():
-        time.sleep(0.05)
 
     if shutdown_event.is_set():
         return
 
-    detective = detective_holder[0]
+    #detective = detective_holder[0]
 
     # If no args provided, parse with defaults
     if args is None:
@@ -263,7 +265,7 @@ def main(detective_holder: list, shutdown_event: threading.Event, args=None):
                f"zone0={thresholds[0]:.1f}cm, zone1={thresholds[1]:.1f}cm")
     logger.log(f"Min threshold: {MIN_THRESHOLD_CM}cm")
 
-    counter = PeopleCounter(thresholds[0], thresholds[1], detective, MIN_THRESHOLD_CM)
+    counter = PeopleCounter(thresholds[0], thresholds[1], MIN_THRESHOLD_CM)
     counter.people_count = args.initial_count
     filters = [MinDistFilter(MIN_DIST_FILTER_SIZE),
                MinDistFilter(MIN_DIST_FILTER_SIZE)]
@@ -334,7 +336,7 @@ def main(detective_holder: list, shutdown_event: threading.Event, args=None):
 
                     # enter will return the candidate device that it thinks has entered the room
                     # will either be of type Device or None
-                    device = counter.detective.enter()
+                    #device = counter.detective.enter()
 
                     if audio_ok:
                         play_sound(ENTRY_SOUND)
@@ -343,7 +345,7 @@ def main(detective_holder: list, shutdown_event: threading.Event, args=None):
 
                     # exit doesn't return anything, it just lets the detective
                     # know that an exit happened
-                    counter.detective.exit()
+                    #counter.detective.exit()
 
                 next_zone = 1 - current_zone
                 sensor.roi_center = ZONE_CENTERS[next_zone]
