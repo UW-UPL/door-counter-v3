@@ -13,15 +13,14 @@ import logger
 
 # Config
 DISTANCE_MODE = 2
-TIMING_BUDGET_MS = 50 # ms per measurement per zone
+TIMING_BUDGET_MS = 33 # ms per measurement per zone
 ROI_WIDTH = 8 # SPADs wide per zone
 ROI_HEIGHT = 16 # SPADs tall per zone (should always be 16)
 ZONE_CENTERS = [167, 231]
 THRESHOLD_PERCENT = 80 # % of floor dist
 MIN_THRESHOLD_CM = 20 # ignore closer to this (ignore door)
 CALIBRATION_SAMPLES = 20 # Readings per zone during calibration
-MIN_DIST_FILTER_SIZE = 2 # rolling minimum filter window
-MANUAL_FLOOR_CM = 241.0 # Measured: 95 inches from sensor to floor
+MIN_DIST_FILTER_SIZE = 3 # rolling minimum filter window
 CROSSING_TIMEOUT_S = 5.0 # abandon crossing if takes longer than
 
 
@@ -256,13 +255,15 @@ def main(shutdown_event: threading.Event, args=None):
     sensor.start_ranging()
     logger.log(f"Sensor configured: mode={DISTANCE_MODE}, budget={TIMING_BUDGET_MS}ms, ROI={ROI_WIDTH}x{ROI_HEIGHT}")
 
-    floor_distances = [MANUAL_FLOOR_CM, MANUAL_FLOOR_CM]
+    logger.log("=" * 40)
+    logger.log("CALIBRATING - Keep the doorway CLEAR!")
+    logger.log("=" * 40)
+    floor_distances = calibrate(sensor, ZONE_CENTERS, CALIBRATION_SAMPLES)
     threshold_pct = args.threshold / 100.0
     thresholds = [d * threshold_pct for d in floor_distances]
 
-    logger.log(f"Floor distance (manual): {MANUAL_FLOOR_CM}cm")
-    logger.log(f"Thresholds ({args.threshold}%): "
-               f"zone0={thresholds[0]:.1f}cm, zone1={thresholds[1]:.1f}cm")
+    logger.log(f"Floor distances: zone0={floor_distances[0]:.1f}cm, zone1={floor_distances[1]:.1f}cm")
+    logger.log(f"Thresholds ({args.threshold}%): zone0={thresholds[0]:.1f}cm, zone1={thresholds[1]:.1f}cm")
     logger.log(f"Min threshold: {MIN_THRESHOLD_CM}cm")
 
     counter = PeopleCounter(thresholds[0], thresholds[1], MIN_THRESHOLD_CM)
@@ -291,19 +292,9 @@ def main(shutdown_event: threading.Event, args=None):
                 raw = sensor.distance
                 sensor.clear_interrupt()
                 if raw is not None and raw > 0:
-                    # If this reading is above threshold (floor-level),
-                    # reset the filter so stale person-readings flush out
-                    if raw >= thresholds[current_zone]:
-                        filters[current_zone].reset()
-
                     filtered = filters[current_zone].update(raw)
                 else:
-                    # just switch zones and try again
-                    next_zone = 1 - current_zone
-                    sensor.roi_center = ZONE_CENTERS[next_zone]
-                    current_zone = next_zone
-                    time.sleep(0.01)
-                    continue
+                    filtered = floor_distances[current_zone]
 
                 # Debug
                 if args.debug:
@@ -357,8 +348,6 @@ def main(shutdown_event: threading.Event, args=None):
                 time.sleep(0.001)
 
             if counter.check_timeout(CROSSING_TIMEOUT_S):
-                filters[0].reset()
-                filters[1].reset()
                 if args.debug:
                     logger.debug("Crossing abandoned, state machine reset")
 
