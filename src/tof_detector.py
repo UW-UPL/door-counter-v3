@@ -9,7 +9,7 @@ from collections import deque
 import threading
 import logger
 
-#from detective import Detective
+from detective import Detective
 
 # Config
 DISTANCE_MODE = 2
@@ -212,18 +212,17 @@ def play_sound(filepath):
         logger.error(f"Could not play {filepath}: {e}")
 
 # Main Logic
-def main(shutdown_event: threading.Event, args=None):
+def main(detective_holder: List[Detective], shutdown_event: threading.Event, args=None):
 
     # we need to wait for detective to be initialized
-    # i dunno a better way to do this concurrently in Go
-    #while detective_holder[0] is None and not shutdown_event.is_set():
-    #    time.sleep(0.1)
     # i dunno a better way to do this concurrently
+    while detective_holder[0] is None and not shutdown_event.is_set():
+        time.sleep(0.1)
 
     if shutdown_event.is_set():
         return
 
-    #detective = detective_holder[0]
+    detective = detective_holder[0]
 
     # If no args provided, parse with defaults
     if args is None:
@@ -327,7 +326,7 @@ def main(shutdown_event: threading.Event, args=None):
 
                     # enter will return the candidate device that it thinks has entered the room
                     # will either be of type Device or None
-                    #device = counter.detective.enter()
+                    device = counter.detective.enter()
 
                     if audio_ok:
                         play_sound(ENTRY_SOUND)
@@ -336,7 +335,7 @@ def main(shutdown_event: threading.Event, args=None):
 
                     # exit doesn't return anything, it just lets the detective
                     # know that an exit happened
-                    #counter.detective.exit()
+                    counter.detective.exit()
 
                 next_zone = 1 - current_zone
                 sensor.roi_center = ZONE_CENTERS[next_zone]

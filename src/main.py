@@ -33,7 +33,7 @@ def main():
         threading.Thread(target=ble_scanner.main, args=(shutdown_event, detective_holder), name="ble_scanner"),
         threading.Thread(target=bt_service.main, args=(shutdown_event,), name="bt_service"),
         threading.Thread(target=github_sync.main, args=(shutdown_event,), name="github_sync"),
-        threading.Thread(target=tof_detector.main, args=(shutdown_event, args), name="tof_detector"),
+        threading.Thread(target=tof_detector.main, args=(detective_holder, shutdown_event, args), name="tof_detector"),
     ]
 
     for t in threads:
