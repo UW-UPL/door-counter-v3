@@ -19,7 +19,7 @@ ZONE_CENTERS = [167, 231]
 THRESHOLD_PERCENT = 80 # % of floor dist
 MIN_THRESHOLD_CM = 20 # ignore closer to this (ignore door)
 CALIBRATION_SAMPLES = 20 # Readings per zone during calibration
-MIN_DIST_FILTER_SIZE = 5 # rolling minimum filter window
+MIN_DIST_FILTER_SIZE = 2 # rolling minimum filter window
 MANUAL_FLOOR_CM = 241.0 # Measured: 95 inches from sensor to floor
 CROSSING_TIMEOUT_S = 5.0 # abandon crossing if takes longer than
 
@@ -289,6 +289,11 @@ def main(detective_holder: list, shutdown_event: threading.Event, args=None):
                 raw = sensor.distance
                 sensor.clear_interrupt()
                 if raw is not None and raw > 0:
+                    # If this reading is above threshold (floor-level),
+                    # reset the filter so stale person-readings flush out
+                    if raw >= thresholds[current_zone]:
+                        filters[current_zone].reset()
+
                     filtered = filters[current_zone].update(raw)
                 else:
                     # just switch zones and try again
@@ -350,6 +355,8 @@ def main(detective_holder: list, shutdown_event: threading.Event, args=None):
                 time.sleep(0.001)
 
             if counter.check_timeout(CROSSING_TIMEOUT_S):
+                filters[0].reset()
+                filters[1].reset()
                 if args.debug:
                     logger.debug("Crossing abandoned, state machine reset")
 
