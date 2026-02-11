@@ -6,6 +6,7 @@ import heapq
 import logger
 from typing import TYPE_CHECKING
 from device import Device
+import logger
 if TYPE_CHECKING:
 	from ble_scanner import BLEScanner
 
