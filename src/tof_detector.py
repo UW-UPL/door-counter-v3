@@ -599,7 +599,7 @@ def main(detective_holder: list[Detective], shutdown_event: threading.Event, arg
 
                     # enter will return the candidate device that it thinks has entered the room
                     # will either be of type Device or None
-                    #device = counter.detective.enter()
+                    device = counter.detective.enter()
 
                     if audio_ok:
                         play_sound(ENTRY_SOUND)
@@ -608,7 +608,7 @@ def main(detective_holder: list[Detective], shutdown_event: threading.Event, arg
 
                     # exit doesn't return anything, it just lets the detective
                     # know that an exit happened
-                    #counter.detective.exit()
+                    counter.detective.exit()
 
                 # Zone switch with proper timing. Sequence: finish processing →
                 # switch ROI center → mark next reading as stale → small delay
