@@ -24,6 +24,8 @@ def main():
                         help="Print periodic status every N seconds (0=off)")
     parser.add_argument("--initial-count", type=int, default=0,
                         help="Initial people count (default: 0)")
+    parser.add_argument("--manual-threshold", action="store_true",
+                        help="Skip auto-calibration and use manual threshold based on mounting height")
     args = parser.parse_args()
 
     shutdown_event = threading.Event()
