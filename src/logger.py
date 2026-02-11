@@ -6,6 +6,7 @@ COLORS = {
     "github_sync": "\033[95m",
     "tof_detector": "\033[93m",
     "detective": "\033[92m",
+    "gc": "\033[92m",
     "main": "\033[97m",
 }
 
