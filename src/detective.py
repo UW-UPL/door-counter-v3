@@ -30,7 +30,7 @@ class Detective:
         self.active_set = set()
 
         self._running = True
-        self._gc_thread = threading.Thread(target=self._gc_loop, daemon=True)
+        self._gc_thread = threading.Thread(name="gc", target=self._gc_loop, daemon=True)
         self._gc_thread.start()
 
     # called by ToF when it detects an entrance
