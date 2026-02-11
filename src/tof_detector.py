@@ -9,7 +9,6 @@ from collections import deque
 import threading
 import struct
 import logger
-from detective import Detective
 
 #from detective import Detective
 
@@ -51,12 +50,11 @@ DEBOUNCE_S = 0.5
 MOUNTING_HEIGHT_CM = 92.0
 MANUAL_THRESHOLD_CM = MOUNTING_HEIGHT_CM * (THRESHOLD_PERCENT / 100.0)
 
-# Signal rate and sigma thresholds for dark clothing.
-# Defaults (1024 kcps signal, 15mm sigma) are too aggressive for
-# dark fabric at close range. Lowering these recovers detections
-# on black jackets, dark synthetics, etc.
+# Signal rate threshold for dark clothing detection.
+# Default (1024 kcps) is too aggressive for dark fabric at close range —
+# dark synthetics return only 30-200 kcps. Lowering this lets those
+# weak-but-valid returns through.
 SIGNAL_THRESHOLD_KCPS = 300
-SIGMA_THRESHOLD_MM = 30
 
 
 # TODO: Change to either random from bank / custom
@@ -64,35 +62,31 @@ SIGMA_THRESHOLD_MM = 30
 ENTRY_SOUND = "../sounds/custom/oliver.wav"
 
 
-# Low-level register writes for signal/sigma thresholds
-# The Adafruit CircuitPython library doesn't expose these settings,
-# so we write directly to the VL53L1X registers over I2C.
-def write_sensor_thresholds(i2c_device, signal_kcps=SIGNAL_THRESHOLD_KCPS,
-                            sigma_mm=SIGMA_THRESHOLD_MM):
+# Low-level register write for signal rate threshold.
+# The Adafruit CircuitPython library doesn't expose this setting,
+# so we write directly to the VL53L1X register over I2C.
+#
+# IMPORTANT: We do NOT touch the sigma threshold (register 0x0064).
+# The default sigma threshold is 90mm (0x0168 in 14.2 fixed-point format),
+# verified from the Adafruit library's init sequence at bytes 0x64-0x65.
+# Sigma is a MAXIMUM — readings with uncertainty ABOVE it are rejected.
+# Lowering sigma makes the sensor MORE restrictive, which causes it to
+# reject legitimate floor readings at 92cm (which have 40-80mm sigma on
+# waxed concrete) and only accept internal cross-talk reflections at ~2cm.
+def write_sensor_thresholds(i2c_device, signal_kcps=SIGNAL_THRESHOLD_KCPS):
     """
-    Lower the signal rate and sigma thresholds to improve detection
-    of dark/low-reflectivity targets like black jackets.
+    Lower the signal rate threshold to improve detection of dark/low-
+    reflectivity targets like black jackets.
 
     Signal rate register: 0x0066-0x0067 (9.7 fixed-point format)
-    Sigma register:       0x0064-0x0065 (14.2 fixed-point format)
+    Default: 0x0080 = 128 → 1000 kcps
+    Our value: 0x0026 = 38 → ~300 kcps
     """
     try:
         # Signal rate: convert kcps to 9.7 fixed-point
         # Formula: value = (kcps / 1000) * 128
         signal_val = int((signal_kcps / 1000.0) * 128)
         signal_bytes = struct.pack(">H", signal_val)
-
-        # Sigma: convert mm to 14.2 fixed-point
-        # Formula: value = mm * 4
-        sigma_val = int(sigma_mm * 4)
-        sigma_bytes = struct.pack(">H", sigma_val)
-
-        # Write sigma threshold (0x0064)
-        buf = bytes([0x00, 0x64]) + sigma_bytes
-        while not i2c_device.try_lock():
-            pass
-        i2c_device.writeto(0x29, buf)
-        i2c_device.unlock()
 
         # Write signal rate threshold (0x0066)
         buf = bytes([0x00, 0x66]) + signal_bytes
@@ -101,9 +95,8 @@ def write_sensor_thresholds(i2c_device, signal_kcps=SIGNAL_THRESHOLD_KCPS,
         i2c_device.writeto(0x29, buf)
         i2c_device.unlock()
 
-        logger.log(f"Sensor thresholds set: signal={signal_kcps}kcps "
-                   f"(reg=0x{signal_val:04X}), sigma={sigma_mm}mm "
-                   f"(reg=0x{sigma_val:04X})")
+        logger.log(f"Sensor signal threshold set: {signal_kcps}kcps "
+                   f"(reg=0x{signal_val:04X}), sigma=default 90mm (untouched)")
     except Exception as e:
         logger.error(f"Could not write sensor thresholds: {e}")
         logger.log("Continuing with default thresholds (dark clothing "
@@ -182,7 +175,7 @@ STATE_NAMES = {
 ZONE_NAMES = ["COMMONS", "UPL"]
 
 class PeopleCounter:
-    def __init__(self, detective: Detective, threshold_z0_cm: float, threshold_z1_cm: float, min_threshold_cm: float = 0):
+    def __init__(self, threshold_z0_cm: float, threshold_z1_cm: float, min_threshold_cm: float = 0):
         self.thresholds = [threshold_z0_cm, threshold_z1_cm]
         self.min_threshold = min_threshold_cm
         self.path_track = [0, 0, 0, 0, 0, 0] # extra slots for longer paths
@@ -191,7 +184,6 @@ class PeopleCounter:
         self.people_count = 0
         self.crossing_start_time = 0.0
         self.last_crossing_time = 0.0 # debounce timer
-        self.detective = detective
 
         # Medium-confidence partial crossing tracking.
         # Stores the zone that was seen in the last "partial" event
@@ -440,17 +432,17 @@ def play_sound(filepath):
         logger.error(f"Could not play {filepath}: {e}")
 
 # Main Logic
-def main(detective_holder: list[Detective], shutdown_event: threading.Event, args=None):
+def main(shutdown_event: threading.Event, args=None):
 
     # we need to wait for detective to be initialized
     # i dunno a better way to do this concurrently
-    while detective_holder[0] is None and not shutdown_event.is_set():
-        time.sleep(0.1)
+    #while detective_holder[0] is None and not shutdown_event.is_set():
+    #    time.sleep(0.1)
 
     if shutdown_event.is_set():
         return
 
-    detective = detective_holder[0]
+    #detective = detective_holder[0]
 
     # If no args provided, parse with defaults
     if args is None:
@@ -481,9 +473,9 @@ def main(detective_holder: list[Detective], shutdown_event: threading.Event, arg
     sensor.timing_budget = TIMING_BUDGET_MS
     sensor.roi_xy = (ROI_WIDTH, ROI_HEIGHT)
 
-    # Write low-level signal/sigma thresholds for dark clothing detection
-    # before starting ranging.
-    write_sensor_thresholds(i2c, SIGNAL_THRESHOLD_KCPS, SIGMA_THRESHOLD_MM)
+    # Write low-level signal rate threshold for dark clothing detection
+    # before starting ranging. Only signal rate — sigma stays at default 90mm.
+    write_sensor_thresholds(i2c, SIGNAL_THRESHOLD_KCPS)
 
     sensor.start_ranging()
     logger.log(f"Sensor configured: mode={DISTANCE_MODE} (SHORT), budget={TIMING_BUDGET_MS}ms, ROI={ROI_WIDTH}x{ROI_HEIGHT}")
@@ -508,7 +500,7 @@ def main(detective_holder: list[Detective], shutdown_event: threading.Event, arg
     logger.log(f"Thresholds ({args.threshold}%): zone0={thresholds[0]:.1f}cm, zone1={thresholds[1]:.1f}cm")
     logger.log(f"Min threshold: {MIN_THRESHOLD_CM}cm")
 
-    counter = PeopleCounter(detective, thresholds[0], thresholds[1], MIN_THRESHOLD_CM)
+    counter = PeopleCounter(thresholds[0], thresholds[1], MIN_THRESHOLD_CM)
     counter.people_count = args.initial_count
     filters = [MinDistFilter(MIN_DIST_FILTER_SIZE),
                MinDistFilter(MIN_DIST_FILTER_SIZE)]
@@ -533,7 +525,7 @@ def main(detective_holder: list[Detective], shutdown_event: threading.Event, arg
     logger.log(f"  Debounce:          {DEBOUNCE_S}s")
     logger.log(f"  Min filter window: {MIN_DIST_FILTER_SIZE}")
     logger.log(f"  Signal threshold:  {SIGNAL_THRESHOLD_KCPS} kcps")
-    logger.log(f"  Sigma threshold:   {SIGMA_THRESHOLD_MM} mm")
+    logger.log(f"  Sigma threshold:   90 mm (default, untouched)")
     if args.initial_count > 0:
         logger.log(f"  Starting count:    {args.initial_count}")
     if args.debug:
@@ -599,7 +591,7 @@ def main(detective_holder: list[Detective], shutdown_event: threading.Event, arg
 
                     # enter will return the candidate device that it thinks has entered the room
                     # will either be of type Device or None
-                    device = counter.detective.enter()
+                    #device = counter.detective.enter()
 
                     if audio_ok:
                         play_sound(ENTRY_SOUND)
@@ -608,7 +600,7 @@ def main(detective_holder: list[Detective], shutdown_event: threading.Event, arg
 
                     # exit doesn't return anything, it just lets the detective
                     # know that an exit happened
-                    counter.detective.exit()
+                    #counter.detective.exit()
 
                 # Zone switch with proper timing. Sequence: finish processing →
                 # switch ROI center → mark next reading as stale → small delay
