@@ -22,6 +22,7 @@ MIN_THRESHOLD_CM = 20 # ignore closer to this (ignore door)
 CALIBRATION_SAMPLES = 20 # Readings per zone during calibration
 MIN_DIST_FILTER_SIZE = 3 # rolling minimum filter window
 CROSSING_TIMEOUT_S = 5.0 # abandon crossing if takes longer than
+MIN_CROSSING_DURATION_S = 0.2 # minimum duration before allowing crossing completion
 
 
 # TODO: Change to either random from bank / custom
@@ -115,6 +116,18 @@ class PeopleCounter:
             self.filling_size += 1
 
         if self.prev_status[0] == NOBODY and self.prev_status[1] == NOBODY:
+            # Check if we've been in a crossing long enough to complete it.
+            # If the crossing started very recently (< MIN_CROSSING_DURATION_S),
+            # this is likely just a brief dropout in the middle of an actual
+            # crossing - don't evaluate yet, just continue tracking.
+            crossing_duration = 0.0
+            if self.crossing_start_time > 0.0:
+                crossing_duration = time.time() - self.crossing_start_time
+
+            if crossing_duration > 0 and crossing_duration < MIN_CROSSING_DURATION_S:
+                # Too short - likely noise. Don't evaluate, keep tracking.
+                return 0
+
             change = 0
 
             if self.filling_size == 4:
@@ -279,10 +292,12 @@ def main(shutdown_event: threading.Event, args=None):
 
     logger.log("=" * 40)
     logger.log("PEOPLE COUNTER ACTIVE")
+    logger.log(f"  Crossing timeout: {CROSSING_TIMEOUT_S}s")
+    logger.log(f"  Min crossing duration: {MIN_CROSSING_DURATION_S}s (prevents noise dropouts)")
     if args.initial_count > 0:
-        logger.log(f"Starting count: {args.initial_count}")
+        logger.log(f"  Starting count: {args.initial_count}")
     if args.debug:
-        logger.log("DEBUG MODE ON - showing all readings")
+        logger.log("  DEBUG MODE ON - showing all readings")
     logger.log("=" * 40)
     last_status_time = time.time()
     # Main Loop
