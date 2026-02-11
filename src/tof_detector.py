@@ -13,10 +13,11 @@ import logger
 
 # Config
 DISTANCE_MODE = 2
-TIMING_BUDGET_MS = 33 # ms per measurement per zone
+TIMING_BUDGET_MS = 50 # ms per measurement per zone (increased from 33 for better dark object detection)
 ROI_WIDTH = 8 # SPADs wide per zone
-ROI_HEIGHT = 16 # SPADs tall per zone (should always be 16)
-ZONE_CENTERS = [167, 231]
+ROI_HEIGHT = 6 # SPADs tall per zone (reduced from 16 to prevent zone overlap)
+# Zone centers for proper front/back separation (vertical split)
+ZONE_CENTERS = [199, 71]  # 199=Row 12 Col 7 (front), 71=Row 4 Col 7 (back)
 THRESHOLD_PERCENT = 80 # % of floor dist
 MIN_THRESHOLD_CM = 20 # ignore closer to this (ignore door)
 CALIBRATION_SAMPLES = 20 # Readings per zone during calibration
@@ -267,6 +268,7 @@ def main(shutdown_event: threading.Event, args=None):
 
     sensor.start_ranging()
     logger.log(f"Sensor configured: mode={DISTANCE_MODE}, budget={TIMING_BUDGET_MS}ms, ROI={ROI_WIDTH}x{ROI_HEIGHT}")
+    logger.log(f"Zone centers: {ZONE_CENTERS} (non-overlapping vertical split)")
 
     logger.log("=" * 40)
     logger.log("CALIBRATING - Keep the doorway CLEAR!")
@@ -306,10 +308,28 @@ def main(shutdown_event: threading.Event, args=None):
             if sensor.data_ready:
                 raw = sensor.distance
                 sensor.clear_interrupt()
-                if raw is not None and raw > 0:
+                valid_reading = False
+
+                # Check if we have a valid distance reading
+                if raw is not None and raw > 0 and raw < 4000:  # 4000 is max range
+                    valid_reading = True
+
+                if valid_reading:
                     filtered = filters[current_zone].update(raw)
                 else:
-                    filtered = floor_distances[current_zone]
+                    # SIGNAL LOST CASE
+                    # If we were previously tracking a person (filling_size > 1),
+                    # assume the signal loss is due to black hair/clothing absorbing the light.
+                    # Force the "filtered" value to be LOW (detected) to sustain the state.
+                    if counter.filling_size > 1:
+                        # "Hold" the last known pos or default to a "detected" distance
+                        # Picking 'Min Threshold + 1' ensures it stays in the "SOMEONE" state
+                        filtered = MIN_THRESHOLD_CM + 5
+                        if args.debug:
+                            print(f"  [Signal Lost] Sustaining detection for Zone {current_zone}")
+                    else:
+                        # If we weren't tracking anyone, assume it's just the floor/empty
+                        filtered = floor_distances[current_zone]
 
                 # Debug
                 if args.debug:
