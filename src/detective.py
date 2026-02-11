@@ -142,7 +142,7 @@ class Detective:
         # GC will figure out who to kick in a bit
 
     def _gc_loop(self):
-        logger.log("GC RUNNING")
+        
 
         def score(device: Device):
             now = datetime.now()
@@ -253,6 +253,8 @@ class Detective:
         #  runs every 5 seconds
         while self._running:
             time.sleep(5)
+            logger.log("GC RUNNING")
+
             # for easier reasoning, we hold all the locks while we gc
             with self.scanner.lock:
                 with self.lock:
@@ -325,10 +327,10 @@ class Detective:
                             else:
                                 break
         
-        logger.log(f"{len(self.active_set)} devices in BLE active set:")
-        with self.lock:
-            for device in self.active_set:
-                logger.log(f"   {device.name}")
-                logger.log()
+            logger.log(f"{len(self.active_set)} devices in BLE active set:")
+            with self.lock:
+                for device in self.active_set:
+                    logger.log(f"   {device.name}")
+                    logger.log()
         
         
