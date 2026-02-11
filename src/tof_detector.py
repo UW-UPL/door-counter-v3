@@ -9,6 +9,7 @@ from collections import deque
 import threading
 import struct
 import logger
+from detective import Detective
 
 #from detective import Detective
 
@@ -181,7 +182,7 @@ STATE_NAMES = {
 ZONE_NAMES = ["COMMONS", "UPL"]
 
 class PeopleCounter:
-    def __init__(self, threshold_z0_cm: float, threshold_z1_cm: float, min_threshold_cm: float = 0):
+    def __init__(self, detective: Detective, threshold_z0_cm: float, threshold_z1_cm: float, min_threshold_cm: float = 0):
         self.thresholds = [threshold_z0_cm, threshold_z1_cm]
         self.min_threshold = min_threshold_cm
         self.path_track = [0, 0, 0, 0, 0, 0] # extra slots for longer paths
@@ -190,6 +191,7 @@ class PeopleCounter:
         self.people_count = 0
         self.crossing_start_time = 0.0
         self.last_crossing_time = 0.0 # debounce timer
+        self.detective = detective
 
         # Medium-confidence partial crossing tracking.
         # Stores the zone that was seen in the last "partial" event
@@ -438,17 +440,17 @@ def play_sound(filepath):
         logger.error(f"Could not play {filepath}: {e}")
 
 # Main Logic
-def main(shutdown_event: threading.Event, args=None):
+def main(detective_holder: list[Detective], shutdown_event: threading.Event, args=None):
 
     # we need to wait for detective to be initialized
     # i dunno a better way to do this concurrently
-    #while detective_holder[0] is None and not shutdown_event.is_set():
-    #    time.sleep(0.1)
+    while detective_holder[0] is None and not shutdown_event.is_set():
+        time.sleep(0.1)
 
     if shutdown_event.is_set():
         return
 
-    #detective = detective_holder[0]
+    detective = detective_holder[0]
 
     # If no args provided, parse with defaults
     if args is None:
@@ -506,7 +508,7 @@ def main(shutdown_event: threading.Event, args=None):
     logger.log(f"Thresholds ({args.threshold}%): zone0={thresholds[0]:.1f}cm, zone1={thresholds[1]:.1f}cm")
     logger.log(f"Min threshold: {MIN_THRESHOLD_CM}cm")
 
-    counter = PeopleCounter(thresholds[0], thresholds[1], MIN_THRESHOLD_CM)
+    counter = PeopleCounter(detective, thresholds[0], thresholds[1], MIN_THRESHOLD_CM)
     counter.people_count = args.initial_count
     filters = [MinDistFilter(MIN_DIST_FILTER_SIZE),
                MinDistFilter(MIN_DIST_FILTER_SIZE)]
