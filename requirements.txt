@@ -15,6 +15,8 @@ adafruit-blinka>=8.20.0
 # Configuration and utilities
 PyYAML>=6.0
 
-# numpy and matplotlib
+# numpy
 numpy>=2.2.6
-matplotlib>=3.10.8
+
+# GPIO
+RPi.GPIO>=0.7.1
