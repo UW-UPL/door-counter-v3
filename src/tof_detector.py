@@ -13,10 +13,10 @@ import logger
 
 # Config
 DISTANCE_MODE = 2
-TIMING_BUDGET_MS = 50 # ms per measurement per zone
+TIMING_BUDGET_MS = 100 # ms per measurement per zone
 ROI_WIDTH = 8 # SPADs wide per zone
-ROI_HEIGHT = 8 # SPADs tall per zone (should always be 16)
-ZONE_CENTERS = [199, 71]
+ROI_HEIGHT = 16 # SPADs tall per zone
+ZONE_CENTERS = [167, 231]
 THRESHOLD_PERCENT = 80 # % of floor dist
 MIN_THRESHOLD_CM = 20 # ignore closer to this (ignore door)
 CALIBRATION_SAMPLES = 20 # Readings per zone during calibration
