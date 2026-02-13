@@ -40,6 +40,7 @@ class Detective:
             with self.lock:
                 self.tof_size += 1
 
+                logger.log("ENTER CALLED")
                 #   Heuristic:
                 #
                 #   Recency bias: Devices that just sent a signal are considered more favorably
@@ -62,12 +63,11 @@ class Detective:
 
                 MIN_SCORE_THRESHOLD = 0.30
 
-                WEIGHT_RECENCY = 0.10
-                WEIGHT_TREND = 0.30
+                WEIGHT_RECENCY = 0.20
+                WEIGHT_TREND = 0.40
                 WEIGHT_RSSI = 0.40
 
                 for mac, device in self.scanner.devices.items():
-                    logger.log(f"ANALYZING DEVICE: {mac} | {device.name}")
 
                     if device in self.active_set:
                         continue
@@ -123,7 +123,7 @@ class Detective:
                     if total > best_score and total > MIN_SCORE_THRESHOLD:
                         best_score = total
                         candidate = device
-
+                
                 if candidate is not None:
                     self.active_set.add(candidate)
 
@@ -133,9 +133,6 @@ class Detective:
     
     # called by ToF when it detects an exit
     def exit(self):
-        # give some time for the person to walk away
-        time.sleep(10)
-
         with self.lock:
             self.tof_size = max(self.tof_size-1, 0)
         
@@ -145,13 +142,14 @@ class Detective:
         
 
         def score(device: Device):
+            logger.log(f"SCORING DEVICE {device.name}")
             now = datetime.now()
 
-            # truncate to last 10 minutes
+            # truncate to last 5 minutes
             full_history = device.get_history()
             history = []
             for rssi, ts in full_history:
-                if (now - ts).total_seconds() <= 600:
+                if (now - ts).total_seconds() <= 300:
                     history.append((rssi, ts))
 
             if len(history) == 0:
@@ -163,12 +161,12 @@ class Detective:
             #       they are in the room later. It also attempts to detect people who have walked away
             #       (negative RSSI trend) or were walking towards (positive RSSI trend) the room.
             #
-            #   Consistency: Over the last 10 minutes have we seen a signal every minute from the device?
+            #   Consistency: Over the last 5 minutes have we seen a signal every 30 seconds from the device?
             #
             #   Strength: If we have seen signals, how strong are they?
             #   
             #   RSSI Trend: Has a device been seen walking away (lesser score) or walking towards (greater score)
-            #       the room some time during the 10 minute window?
+            #       the room some time during the 5 minute window?
             #
             #   All of these factors are weighted and compared to a score threshold.
             
@@ -181,7 +179,7 @@ class Detective:
             #   during the time window, or they had walked towards the room inside the
             #   time window.
 
-            trend_score = 0.5
+            trend = 0.5
 
             def compute_slope(readings):
                 if len(readings) < 5:
@@ -207,7 +205,7 @@ class Detective:
 
             # Check sliding 30 second windows for max positive slope (walking towards)
             max_towards_slope = 0.0
-            for window_start in range(0, 570, 10):
+            for window_start in range(0, 270, 10):
                 window = []
                 for r, ts in history:
                     seconds_ago = (now - ts).total_seconds()
@@ -222,9 +220,9 @@ class Detective:
             # Walking away at end dominates
             SLOPE_THRESHOLD = 0.6 # dBm/sec
             if away_slope < -SLOPE_THRESHOLD: # penalize (normalize slope to 0-0.5 range)
-                trend_score = np.clip(0.5 + away_slope / 4.0, 0, 0.5)
+                trend = np.clip(0.5 + away_slope / 4.0, 0, 0.5)
             elif max_towards_slope > SLOPE_THRESHOLD: # boost (normalize slope to 0.5-1.0 range)
-                trend_score = np.clip(0.5 + max_towards_slope / 4.0, 0.5, 1.0)
+                trend = np.clip(0.5 + max_towards_slope / 4.0, 0.5, 1.0)
 
             bins = [[] for _ in range(10)]
             for rssi, ts in history:
@@ -248,11 +246,12 @@ class Detective:
                 strength = (avg_rssi - (-90)) / ((-30) - (-90))
                 strength = np.clip(strength, 0, 1)
 
-            return WEIGHT_CONSISTENCY * consistency + WEIGHT_STRENGTH * strength + WEIGHT_TREND * trend_score
+            logger.log(f"SCORE: {WEIGHT_CONSISTENCY * consistency + WEIGHT_STRENGTH * strength + WEIGHT_TREND * trend}")
+            return WEIGHT_CONSISTENCY * consistency + WEIGHT_STRENGTH * strength + WEIGHT_TREND * trend
 
-        #  runs every 5 seconds
+        #  runs every 10 seconds
         while self._running:
-            time.sleep(5)
+            time.sleep(10)
             logger.log("GC RUNNING")
 
             # for easier reasoning, we hold all the locks while we gc
@@ -264,6 +263,17 @@ class Detective:
                     self.active_set &= tracked_devices
 
                     device_scores = {device: score(device) for device in tracked_devices}
+
+                    # if a device shows no history within the last 5 minutes
+                    # explicitly boot it no matter what
+                    stale = set()
+                    for d in self.active_set:
+                        if device_scores.get(d, 0) == 0.0:
+                            stale.add(d)
+                    if len(stale) > 0:
+                        self.active_set -= stale
+                        for d in stale:
+                            logger.log(f"Booted stale device: {d.name}")
 
                     # active set is too large
                     if len(self.active_set) > self.tof_size:
@@ -284,8 +294,8 @@ class Detective:
                                 break
 
                             neg_score, device = heapq.heappop(non_active_heap)
-                            score = -neg_score
-                            if score < 0.5: # some threshold we will probably change later
+                            device_score = -neg_score
+                            if device_score < 0.4: # some threshold we will probably change later
                                 break
 
                             self.active_set.add(device)
@@ -331,6 +341,5 @@ class Detective:
             with self.lock:
                 for device in self.active_set:
                     logger.log(f"   {device.name}")
-                    logger.log()
         
         
