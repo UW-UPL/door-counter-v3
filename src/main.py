@@ -7,7 +7,7 @@ import bt_service
 import github_sync
 import tof_detector
 import logger
-import dummy_tof_detector
+
 
 def main():
     threading.current_thread().name = "main"
@@ -33,10 +33,9 @@ def main():
 
     threads = [
         threading.Thread(target=ble_scanner.main, args=(shutdown_event, detective_holder), name="ble_scanner"),
-        threading.Thread(target=bt_service.main, args=(shutdown_event,), name="bt_service"),
-        # threading.Thread(target=dummy_tof_detector.main, args=(detective_holder, shutdown_event, args), name="tof_detector"),
-        # threading.Thread(target=github_sync.main, args=(shutdown_event,), name="github_sync"),
-        threading.Thread(target=tof_detector.main, args=(detective_holder, shutdown_event, args), name="tof_detector"),
+        threading.Thread(target=bt_service.main, args=(shutdown_event,), namgite="bt_service"),
+        threading.Thread(target=github_sync.main, args=(shutdown_event,), name="github_sync"),
+        threading.Thread(target=tof_detector.main, args=(shutdown_event, args), name="tof_detector"),
     ]
 
     for t in threads:
