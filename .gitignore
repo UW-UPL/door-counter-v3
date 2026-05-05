@@ -15,5 +15,5 @@ Thumbs.db
 
 # Local Netlify folder
 .netlify
-
+script.log
 /recordings

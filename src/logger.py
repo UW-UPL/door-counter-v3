@@ -23,16 +23,16 @@ def _get_prefix():
 
 
 def log(msg):
-    print(f"{_get_prefix()} {msg}")
+    print(f"{_get_prefix()} {msg}", flush=True)
 
 
 def error(msg):
-    print(f"{_get_prefix()} {RED}ERROR: {msg}{RESET}")
+    print(f"{_get_prefix()} {RED}ERROR: {msg}{RESET}", flush=True)
 
 
 def warn(msg):
-    print(f"{_get_prefix()} {YELLOW}WARNING: {msg}{RESET}")
+    print(f"{_get_prefix()} {YELLOW}WARNING: {msg}{RESET}", flush=True)
 
 
 def debug(msg):
-    print(f"{_get_prefix()} {DIM}{msg}{RESET}")
+    print(f"{_get_prefix()} {DIM}{msg}{RESET}", flush=True)
