@@ -75,6 +75,8 @@ def main(shutdown_event: threading.Event):
 
     logger.log("Setting up Bluetooth adapter...")
     adapter_props.Set("org.bluez.Adapter1", "Powered", dbus.Boolean(True))
+    adapter_props.Set("org.bluez.Adapter1", "DiscoverableTimeout", dbus.UInt32(0))
+    adapter_props.Set("org.bluez.Adapter1", "PairableTimeout", dbus.UInt32(0))
     adapter_props.Set("org.bluez.Adapter1", "Discoverable", dbus.Boolean(True))
     adapter_props.Set("org.bluez.Adapter1", "Pairable", dbus.Boolean(True))
     logger.log("Adapter ready - discoverable and pairable")
