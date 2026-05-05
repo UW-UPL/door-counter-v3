@@ -1,5 +1,7 @@
+import subprocess
 import sys
 import threading
+import time
 import argparse
 
 import ble_scanner
@@ -7,6 +9,23 @@ import bt_service
 import github_sync
 import tof_detector
 import logger
+
+
+def prepare_bluetooth():
+    logger.log("Restarting bluetooth service...")
+    subprocess.run(
+        ["sudo", "systemctl", "restart", "bluetooth"],
+        check=True,
+    )
+    time.sleep(2)
+
+    logger.log("Warming up adapter with bluetoothctl scan le...")
+    subprocess.run(
+        ["bluetoothctl", "--timeout", "3", "scan", "le"],
+        check=False,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
 
 
 def main():
@@ -18,6 +37,8 @@ def main():
     parser.add_argument("--initial-count", type=int, default=0,
                         help="Initial people count (default: 0)")
     args = parser.parse_args()
+
+    prepare_bluetooth()
 
     shutdown_event = threading.Event()
     detective_holder = [None]
