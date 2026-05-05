@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 
 
 class Detective:
-    def __init__(self, scanner: "BLEScanner"):
+    def __init__(self, scanner: "BLEScanner", shutdown_event: threading.Event | None = None):
         self.lock = threading.Lock()
 
         # Reference to BLEScanner (set by scanner's __init__)
@@ -29,7 +29,7 @@ class Detective:
         # devices that the detective thinks are currently in the room
         self.active_set = set()
 
-        self._running = True
+        self._shutdown_event = shutdown_event or threading.Event()
         self._gc_thread = threading.Thread(name="gc", target=self._gc_loop, daemon=True)
         self._gc_thread.start()
 
@@ -250,8 +250,9 @@ class Detective:
             return WEIGHT_CONSISTENCY * consistency + WEIGHT_STRENGTH * strength + WEIGHT_TREND * trend
 
         #  runs every 10 seconds
-        while self._running:
-            time.sleep(10)
+        while not self._shutdown_event.is_set():
+            if self._shutdown_event.wait(10):
+                break
             logger.log("GC RUNNING")
 
             # for easier reasoning, we hold all the locks while we gc

@@ -12,8 +12,8 @@ CACHE_REFRESH_INTERVAL = 5  # seconds
 class BLEScanner:
     def __init__(self, shutdown_event: threading.Event):
         self.running = False
-        self.detective = Detective(self)
         self.shutdown_event = shutdown_event
+        self.detective = Detective(self, shutdown_event)
 
         # all tracked devices from database
         # refreshes periodically
