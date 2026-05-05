@@ -1,9 +1,9 @@
 {
   "registrations": [
     {
-      "passkey": "730000",
-      "paired_at": "2026-01-31T17:04:35.558410",
-      "name": "Test",
+      "passkey": "638555",
+      "paired_at": "2026-05-05T12:26:22.875220",
+      "name": "Nick",
       "sound_file": "test.wav",
       "share_presence": true
     }
