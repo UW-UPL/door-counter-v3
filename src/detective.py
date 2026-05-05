@@ -142,7 +142,6 @@ class Detective:
         
 
         def score(device: Device):
-            logger.log(f"SCORING DEVICE {device.name}")
             now = datetime.now()
 
             # truncate to last 5 minutes
@@ -246,8 +245,13 @@ class Detective:
                 strength = (avg_rssi - (-90)) / ((-30) - (-90))
                 strength = np.clip(strength, 0, 1)
 
-            logger.log(f"SCORE: {WEIGHT_CONSISTENCY * consistency + WEIGHT_STRENGTH * strength + WEIGHT_TREND * trend}")
-            return WEIGHT_CONSISTENCY * consistency + WEIGHT_STRENGTH * strength + WEIGHT_TREND * trend
+            total = WEIGHT_CONSISTENCY * consistency + WEIGHT_STRENGTH * strength + WEIGHT_TREND * trend
+            logger.log(
+                f"  score {device.name}: total={total:.2f} "
+                f"(consistency={consistency:.2f} strength={strength:.2f} trend={trend:.2f}, "
+                f"readings={len(history)})"
+            )
+            return total
 
         #  runs every 10 seconds
         while not self._shutdown_event.is_set():
@@ -338,9 +342,12 @@ class Detective:
                             else:
                                 break
         
-            logger.log(f"{len(self.active_set)} devices in BLE active set:")
             with self.lock:
+                logger.log(
+                    f"BLE active set: {len(self.active_set)} device(s), "
+                    f"ToF count: {self.tof_size}, tracked: {len(self.scanner.devices)}"
+                )
                 for device in self.active_set:
-                    logger.log(f"   {device.name}")
+                    logger.log(f"   in-room: {device.name}")
         
         
