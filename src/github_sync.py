@@ -15,10 +15,11 @@ import threading
 import time
 import os
 from datetime import datetime
-from db_manager import get_pending_devices, complete_device
+from db_manager import get_pending_devices, complete_device, get_tof_count, get_in_room
 import logger
 
 PENDING_JSON = "./data/pending.json"
+COUNT_JSON = "./data/count.json"
 REGISTRATIONS = "./data/registrations.json"
 SYNC_INTERVAL = 20  # seconds
 PENDING_WINDOW = 10  # minutes
@@ -31,6 +32,17 @@ def export_pending():
         json.dump(pending, f, indent=2)
 
     return len(pending)
+
+
+def export_count():
+    count = get_tof_count()
+    names = get_in_room()
+
+    os.makedirs(os.path.dirname(COUNT_JSON), exist_ok=True)
+    with open(COUNT_JSON, 'w') as f:
+        json.dump({"count": count, "names": names}, f, indent=2)
+
+    return count
 
 
 def load_registrations() -> list:
@@ -84,8 +96,8 @@ def git_pull():
 
 def git_push():
     try:
-        # Stage pending.json
-        subprocess.run(["git", "add", PENDING_JSON], check=True, timeout=10)
+        # Stage pending.json and count.json
+        subprocess.run(["git", "add", PENDING_JSON, COUNT_JSON], check=True, timeout=10)
 
         # Check if there are changes to commit
         result = subprocess.run(
@@ -129,6 +141,10 @@ def sync_cycle():
     # Export current pending devices
     count = export_pending()
     logger.debug(f"Exported {count} pending device(s)")
+
+    # Export current tof count
+    tof = export_count()
+    logger.debug(f"Exported tof count: {tof}")
 
     # Push updates
     git_push()

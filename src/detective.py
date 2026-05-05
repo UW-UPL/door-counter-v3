@@ -6,6 +6,7 @@ import heapq
 import logger
 from typing import TYPE_CHECKING
 from device import Device
+from db_manager import set_tof_count, set_in_room
 import logger
 if TYPE_CHECKING:
 	from ble_scanner import BLEScanner
@@ -39,6 +40,7 @@ class Detective:
         with self.scanner.lock:
             with self.lock:
                 self.tof_size += 1
+                set_tof_count(self.tof_size)
 
                 logger.log("ENTER CALLED")
                 #   Heuristic:
@@ -61,7 +63,7 @@ class Detective:
                 best_score = 0
                 candidate = None
 
-                MIN_SCORE_THRESHOLD = 0.30
+                MIN_SCORE_THRESHOLD = 0.25
 
                 WEIGHT_RECENCY = 0.20
                 WEIGHT_TREND = 0.40
@@ -135,6 +137,7 @@ class Detective:
     def exit(self):
         with self.lock:
             self.tof_size = max(self.tof_size-1, 0)
+            set_tof_count(self.tof_size)
         
         # GC will figure out who to kick in a bit
 
@@ -349,5 +352,7 @@ class Detective:
                 )
                 for device in self.active_set:
                     logger.log(f"   in-room: {device.name}")
+
+                set_in_room([device.name for device in self.active_set])
         
         

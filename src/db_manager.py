@@ -46,6 +46,58 @@ def _init_db(conn: sqlite3.Connection):
         )
     """) # goofy ahh sqlite doesn't have boolean types
 
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS tof_count (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            count INTEGER NOT NULL,
+            updated_at DATETIME NOT NULL
+        )
+    """)
+    conn.execute(
+        "INSERT OR IGNORE INTO tof_count (id, count, updated_at) VALUES (1, 0, ?)",
+        (datetime.now().isoformat(),),
+    )
+
+    conn.commit()
+
+def set_tof_count(count: int):
+    """update the tof_size count"""
+    conn = _get_connection()
+    conn.execute(
+        "UPDATE tof_count SET count = ?, updated_at = ? WHERE id = 1",
+        (count, datetime.now().isoformat()),
+    )
+    conn.commit()
+
+def get_tof_count() -> int:
+    """returns the current tof count"""
+    conn = _get_connection()
+    cursor = conn.execute("SELECT count FROM tof_count WHERE id = 1")
+    row = cursor.fetchone()
+    return row["count"] if row else 0
+
+def get_in_room() -> List[str]:
+    """returns the names currently in the room"""
+    conn = _get_connection()
+    try:
+        cursor = conn.execute("SELECT name FROM in_room")
+        return [row["name"] for row in cursor.fetchall()]
+    except sqlite3.OperationalError:
+        return []
+
+def set_in_room(names: List[str]):
+    """replace the in_room table with the given names"""
+    conn = _get_connection()
+    conn.execute("DROP TABLE IF EXISTS in_room")
+    conn.execute("""
+        CREATE TABLE in_room (
+            name TEXT NOT NULL
+        )
+    """)
+    conn.executemany(
+        "INSERT INTO in_room (name) VALUES (?)",
+        [(name,) for name in names],
+    )
     conn.commit()
 
 def add_pending_device(mac_address: str, passkey: str):
