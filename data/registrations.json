@@ -13,6 +13,13 @@
             "name": "Ollie",
             "sound_file": "whatever.wav",
             "share_presence": true
+        },
+        {
+            "passkey": "624081",
+            "paired_at": "2026-05-05T14:21:04.788526",
+            "name": "Austin",
+            "sound_file": "whaskljdsakjld",
+            "share_presence": true
         }
     ]
 }
