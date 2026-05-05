@@ -71,7 +71,6 @@ def main(shutdown_event: threading.Event):
 
     adapter = bus.get_object("org.bluez", "/org/bluez/hci0")
     adapter_props = dbus.Interface(adapter, "org.freedesktop.DBus.Properties")
-    adapter_iface = dbus.Interface(adapter, "org.bluez.Adapter1")
 
     logger.log("Setting up Bluetooth adapter...")
     adapter_props.Set("org.bluez.Adapter1", "Powered", dbus.Boolean(True))
@@ -100,15 +99,9 @@ def main(shutdown_event: threading.Event):
     GLib.timeout_add(1000, check_shutdown)
 
     try:
-        adapter_iface.StartDiscovery()
-        logger.log("Discovery started - waiting for devices to pair...")
+        logger.log("Waiting for devices to pair...")
         main_loop.run()
     finally:
-        try:
-            adapter_iface.StopDiscovery()
-        except:
-            logger.error("Could not stop discovery")
-
         try:
             adapter_props.Set("org.bluez.Adapter1", "Discoverable", dbus.Boolean(False))
         except:
