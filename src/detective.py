@@ -286,23 +286,23 @@ class Detective:
 
                     # active set is too large
                     if len(self.active_set) > self.tof_size:
-                        active_heap = [(device_scores[device], device) for device in self.active_set]
+                        active_heap = [(device_scores[device], device.mac, device) for device in self.active_set]
                         heapq.heapify(active_heap)
 
                         while len(self.active_set) > self.tof_size:
-                            _, device = heapq.heappop(active_heap)
+                            _, _, device = heapq.heappop(active_heap)
                             self.active_set.remove(device)
 
                     # active set is too small
                     if len(self.active_set) < self.tof_size:
-                        non_active_heap = [(-device_scores[device], device) for device in tracked_devices if device not in self.active_set]
+                        non_active_heap = [(-device_scores[device], device.mac, device) for device in tracked_devices if device not in self.active_set]
                         heapq.heapify(non_active_heap)
 
                         while len(self.active_set) < self.tof_size:
                             if len(non_active_heap) == 0:
                                 break
 
-                            neg_score, device = heapq.heappop(non_active_heap)
+                            neg_score, _, device = heapq.heappop(non_active_heap)
                             device_score = -neg_score
                             if device_score < 0.35: # some threshold we will probably change later
                                 break
@@ -313,19 +313,19 @@ class Detective:
                     #   keep swapping lowest active with highest non active while significantly better
                     if len(self.active_set) > 0:
                         # min heap for active devices
-                        active_heap = [(device_scores[device], device) for device in self.active_set]
-                        
+                        active_heap = [(device_scores[device], device.mac, device) for device in self.active_set]
+
                         heapq.heapify(active_heap)
 
                         # max heap for non active devices
-                        non_active_heap = [(-device_scores[device], device) for device in tracked_devices if device not in self.active_set]
+                        non_active_heap = [(-device_scores[device], device.mac, device) for device in tracked_devices if device not in self.active_set]
                         heapq.heapify(non_active_heap)
 
                         REPLACEMENT_THRESHOLD = 0.10
 
                         while len(active_heap) > 0 and len(non_active_heap) > 0:
-                            min_active_score, min_active_device = active_heap[0]
-                            neg_max_non_active_score, max_non_active_device = non_active_heap[0]
+                            min_active_score, _, min_active_device = active_heap[0]
+                            neg_max_non_active_score, _, max_non_active_device = non_active_heap[0]
                             max_non_active_score = -neg_max_non_active_score
 
                             # Swap if non active score is significantly better
@@ -341,8 +341,8 @@ class Detective:
                                 logger.log(f"Replaced {min_active_device.name} (score: {min_active_score:.2f}) " f"with {max_non_active_device.name} (score: {max_non_active_score:.2f})")
 
                                 # swapped devices now switch heaps
-                                heapq.heappush(non_active_heap, (-min_active_score, min_active_device))
-                                heapq.heappush(active_heap, (max_non_active_score, max_non_active_device))
+                                heapq.heappush(non_active_heap, (-min_active_score, min_active_device.mac, min_active_device))
+                                heapq.heappush(active_heap, (max_non_active_score, max_non_active_device.mac, max_non_active_device))
                             else:
                                 break
         
