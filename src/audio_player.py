@@ -1,7 +1,7 @@
 import os
 import random
 from typing import Optional, Dict
-import pygame
+# import pygame
 
 
 class AudioPlayer:
@@ -10,7 +10,7 @@ class AudioPlayer:
         self.default_sounds_dir = default_sounds_dir
         self.custom_sounds_dir = custom_sounds_dir
 
-        pygame.mixer.init()
+        # pygame.mixer.init()
         print("Audio player initialized")
 
         self.default_sounds = self._load_default_sounds()
@@ -51,13 +51,13 @@ class AudioPlayer:
                 return
 
         try:
-            pygame.mixer.music.load(sound_path)
-            pygame.mixer.music.play()
+            # pygame.mixer.music.load(sound_path)
+            # pygame.mixer.music.play()
             print(f"  {os.path.basename(sound_path)}")
         except Exception as e:
             print(f"Failed to play sound: {e}")
 
     def stop(self):
-        pygame.mixer.music.stop()
-        pygame.mixer.quit()
+        # pygame.mixer.music.stop()
+        # pygame.mixer.quit()
         print("Audio player stopped")

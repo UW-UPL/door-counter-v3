@@ -8,8 +8,8 @@ from audio_player import AudioPlayer
 
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FLOOR_PATH = os.path.join(_REPO_ROOT, "floor.npy")
-COUNT_FILE = os.path.join(_REPO_ROOT, "count.txt")
-CLIPS_DIR = os.path.join(_REPO_ROOT, "recordings")
+# COUNT_FILE = os.path.join(_REPO_ROOT, "count.txt")
+# CLIPS_DIR = os.path.join(_REPO_ROOT, "recordings")
 
 
 def main(detective_holder, shutdown_event: threading.Event, args=None):
@@ -63,8 +63,8 @@ def main(detective_holder, shutdown_event: threading.Event, args=None):
         live.cmd_run(
             floor_path=FLOOR_PATH,
             initial=initial,
-            count_file=COUNT_FILE,
-            clips_dir=CLIPS_DIR,
+            # count_file=COUNT_FILE,
+            # clips_dir=CLIPS_DIR,
             audio=False,
             shutdown_event=shutdown_event,
             on_event=on_event,

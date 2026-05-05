@@ -33,9 +33,10 @@ ENTRY_SOUND = os.path.join(_REPO_ROOT, "sounds", "custom", "oliver.wav")
 
 def init_audio():
     try:
-        import pygame
-        pygame.mixer.init()
-        return pygame
+        # import pygame
+        # pygame.mixer.init()
+        # return pygame
+        return None
     except Exception as e:
         print(f"audio init failed: {e}")
         return None
@@ -45,8 +46,9 @@ def play_sound(pg, path):
     if pg is None:
         return
     try:
-        pg.mixer.music.load(path)
-        pg.mixer.music.play()
+        # pg.mixer.music.load(path)
+        # pg.mixer.music.play()
+        pass
     except Exception as e:
         print(f"could not play {path}: {e}")
 
