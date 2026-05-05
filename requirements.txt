@@ -1,22 +1,16 @@
-# BLE scanning and device detection
 bleak>=0.21.1
 
-# DBus for Bluetooth pairing agent (Linux BlueZ)
 dbus-python>=1.3.2
 PyGObject>=3.42.0
 
-# Audio playback
 pygame>=2.6.0
 
-# ToF sensor support
-adafruit-circuitpython-vl53l1x>=1.1.0
-adafruit-blinka>=8.20.0
+numpy>=1.24
+opencv-python>=4.8
+scipy>=1.10
+scikit-image>=0.21
+filterpy>=1.4.5
 
-# Configuration and utilities
 PyYAML>=6.0
 
-# numpy
-numpy>=2.2.6
-
-# GPIO
 RPi.GPIO>=0.7.1

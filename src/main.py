@@ -12,20 +12,21 @@ import logger
 def main():
     threading.current_thread().name = "main"
 
-    # Parse tof_detector arguments
     parser = argparse.ArgumentParser(description="UPL Door Counter")
-    parser.add_argument("--debug", action="store_true",
-                        help="Print every zone reading and state transition")
     parser.add_argument("--no-audio", action="store_true",
-                        help="Disable sound playback")
-    parser.add_argument("--threshold", type=int, default=80,
-                        help="Threshold %% of floor distance (default: 80)")
-    parser.add_argument("--status-interval", type=float, default=0,
-                        help="Print periodic status every N seconds (0=off)")
+                        help="Disable sound playback on entry")
     parser.add_argument("--initial-count", type=int, default=0,
                         help="Initial people count (default: 0)")
-    parser.add_argument("--manual-threshold", action="store_true",
-                        help="Skip auto-calibration and use manual threshold based on mounting height")
+    parser.add_argument("--floor", default="floor.npy",
+                        help="Path to floor reference npy (default: floor.npy)")
+    parser.add_argument("--show", action="store_true",
+                        help="Open an OpenCV window with the live overlay")
+    parser.add_argument("--save-video", default=None,
+                        help="Path to an mp4 of the full annotated session")
+    parser.add_argument("--save-clips", dest="clips_dir", default=None,
+                        help="Directory to save a short mp4+npz for each event")
+    parser.add_argument("--count-file", default=None,
+                        help="File to keep updated with current occupancy + totals")
     args = parser.parse_args()
 
     shutdown_event = threading.Event()
@@ -33,9 +34,9 @@ def main():
 
     threads = [
         threading.Thread(target=ble_scanner.main, args=(shutdown_event, detective_holder), name="ble_scanner"),
-        threading.Thread(target=bt_service.main, args=(shutdown_event,), namgite="bt_service"),
+        threading.Thread(target=bt_service.main, args=(shutdown_event,), name="bt_service"),
         threading.Thread(target=github_sync.main, args=(shutdown_event,), name="github_sync"),
-        threading.Thread(target=tof_detector.main, args=(shutdown_event, args), name="tof_detector"),
+        threading.Thread(target=tof_detector.main, args=(detective_holder, shutdown_event, args), name="tof_detector"),
     ]
 
     for t in threads:
