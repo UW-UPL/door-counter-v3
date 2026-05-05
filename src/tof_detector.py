@@ -39,6 +39,8 @@ def main(detective_holder, shutdown_event: threading.Event, args=None):
             logger.error(f"audio init failed: {e}")
 
     people_count = initial
+    for _ in range(initial):
+        detective.enter()
 
     def on_event(ev):
         nonlocal people_count
