@@ -34,6 +34,13 @@
             "name": "Marko",
             "sound_file": "bruh.wav",
             "share_presence": true
+        },
+        {
+            "passkey": "407057",
+            "paired_at": "2026-05-05T14:32:41.889640",
+            "name": "Albert",
+            "sound_file": "nothing.wav",
+            "share_presence": true
         }
     ]
 }
