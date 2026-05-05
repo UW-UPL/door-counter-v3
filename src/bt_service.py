@@ -51,7 +51,6 @@ class UPLAgent(dbus.service.Object):
     @dbus.service.method(AGENT_INTERFACE, in_signature="os", out_signature="")
     def AuthorizeService(self, device, _):
         # Reject all service requests - we only want the Identity MAC
-        # self._disconnect(device)
         raise dbus.DBusException("org.bluez.Error.Rejected", "Service access denied")
 
     @dbus.service.method(AGENT_INTERFACE, in_signature="os", out_signature="")
