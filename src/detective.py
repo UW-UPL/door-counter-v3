@@ -26,6 +26,7 @@ class Detective:
 
         # number of devices that the tof sensor thinks is in the room
         self.tof_size = 0
+        set_tof_count(self.tof_size)
 
         # devices that the detective thinks are currently in the room
         self.active_set = set()

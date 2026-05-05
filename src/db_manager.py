@@ -46,16 +46,15 @@ def _init_db(conn: sqlite3.Connection):
         )
     """) # goofy ahh sqlite doesn't have boolean types
 
-    conn.execute("DROP TABLE IF EXISTS tof_count")
     conn.execute("""
-        CREATE TABLE tof_count (
+        CREATE TABLE IF NOT EXISTS tof_count (
             id INTEGER PRIMARY KEY CHECK (id = 1),
             count INTEGER NOT NULL,
             updated_at DATETIME NOT NULL
         )
     """)
     conn.execute(
-        "INSERT INTO tof_count (id, count, updated_at) VALUES (1, 0, ?)",
+        "INSERT OR IGNORE INTO tof_count (id, count, updated_at) VALUES (1, 0, ?)",
         (datetime.now().isoformat(),),
     )
 
