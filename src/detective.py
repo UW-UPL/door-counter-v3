@@ -304,7 +304,7 @@ class Detective:
 
                             neg_score, device = heapq.heappop(non_active_heap)
                             device_score = -neg_score
-                            if device_score < 0.2: # some threshold we will probably change later
+                            if device_score < 0.35: # some threshold we will probably change later
                                 break
 
                             self.active_set.add(device)
