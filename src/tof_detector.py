@@ -7,6 +7,9 @@ import logger
 from audio_player import AudioPlayer
 
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+FLOOR_PATH = os.path.join(_REPO_ROOT, "floor.npy")
+COUNT_FILE = os.path.join(_REPO_ROOT, "count.txt")
+CLIPS_DIR = os.path.join(_REPO_ROOT, "recordings")
 
 
 def main(detective_holder, shutdown_event: threading.Event, args=None):
@@ -16,20 +19,12 @@ def main(detective_holder, shutdown_event: threading.Event, args=None):
         return
     detective = detective_holder[0]
 
-    floor = getattr(args, "floor", None) or os.path.join(_REPO_ROOT, "floor.npy")
-    if not os.path.isabs(floor):
-        floor = os.path.join(_REPO_ROOT, floor)
-
     initial = getattr(args, "initial_count", 0)
-    show = getattr(args, "show", False)
-    save_video = getattr(args, "save_video", None)
-    clips_dir = getattr(args, "clips_dir", None)
-    count_file = getattr(args, "count_file", None)
     no_audio = getattr(args, "no_audio", False)
 
-    if not os.path.exists(floor):
-        logger.error(f"floor reference not found: {floor}")
-        logger.error("run `python live.py calibrate floor.npy` first")
+    if not os.path.exists(FLOOR_PATH):
+        logger.error(f"floor reference not found: {FLOOR_PATH}")
+        logger.error("run `python src/live.py calibrate floor.npy` first")
         shutdown_event.set()
         return
 
@@ -66,12 +61,10 @@ def main(detective_holder, shutdown_event: threading.Event, args=None):
 
     try:
         live.cmd_run(
-            floor_path=floor,
-            show=show,
-            save_video=save_video,
+            floor_path=FLOOR_PATH,
             initial=initial,
-            count_file=count_file,
-            clips_dir=clips_dir,
+            count_file=COUNT_FILE,
+            clips_dir=CLIPS_DIR,
             audio=False,
             shutdown_event=shutdown_event,
             on_event=on_event,

@@ -17,16 +17,6 @@ def main():
                         help="Disable sound playback on entry")
     parser.add_argument("--initial-count", type=int, default=0,
                         help="Initial people count (default: 0)")
-    parser.add_argument("--floor", default="floor.npy",
-                        help="Path to floor reference npy (default: floor.npy)")
-    parser.add_argument("--show", action="store_true",
-                        help="Open an OpenCV window with the live overlay")
-    parser.add_argument("--save-video", default=None,
-                        help="Path to an mp4 of the full annotated session")
-    parser.add_argument("--save-clips", dest="clips_dir", default=None,
-                        help="Directory to save a short mp4+npz for each event")
-    parser.add_argument("--count-file", default=None,
-                        help="File to keep updated with current occupancy + totals")
     args = parser.parse_args()
 
     shutdown_event = threading.Event()
