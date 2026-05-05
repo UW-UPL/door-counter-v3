@@ -20,6 +20,13 @@
             "name": "Austin",
             "sound_file": "whaskljdsakjld",
             "share_presence": true
+        },
+        {
+            "passkey": "477356",
+            "paired_at": "2026-05-05T14:24:47.839676",
+            "name": "Matthew",
+            "sound_file": "bruh.wav",
+            "share_presence": true
         }
     ]
 }
