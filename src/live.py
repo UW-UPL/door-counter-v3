@@ -231,7 +231,8 @@ def _write_count_file(path, occupancy, entries, exits, initial):
 
 def cmd_run(floor_path, show=False, save_video=None, scale=3,
             initial=0, count_file=None, clips_dir=None,
-            audio=True, shutdown_event=None, on_event=None):
+            audio=True, shutdown_event=None, on_event=None,
+            on_reset=None):
     floor = np.load(floor_path)
     floor_path_abs = os.path.abspath(floor_path)
     cfg = Config()
@@ -328,6 +329,8 @@ def cmd_run(floor_path, show=False, save_video=None, scale=3,
                 reset_at = _next_reset(now_dt)
                 print(f"[{now_dt:%Y-%m-%d %H:%M:%S}] daily reset "
                       f"-> occupancy=0 (next reset {reset_at:%Y-%m-%d %H:%M})")
+                if on_reset is not None:
+                    on_reset()
                 if count_file:
                     _write_count_file(count_file, 0, 0, 0, 0)
 

@@ -61,6 +61,12 @@ def main(detective_holder, shutdown_event: threading.Event, args=None):
             detective.exit()
             logger.log(f"<<< EXIT detected! Room count: {people_count}")
 
+    def on_reset():
+        nonlocal people_count
+        people_count = 0
+        detective.reset()
+        logger.log("=== Daily reset! Room count: 0")
+
     try:
         live.cmd_run(
             floor_path=FLOOR_PATH,
@@ -70,6 +76,7 @@ def main(detective_holder, shutdown_event: threading.Event, args=None):
             audio=False,
             shutdown_event=shutdown_event,
             on_event=on_event,
+            on_reset=on_reset,
         )
     except Exception as e:
         logger.error(f"tof_detector crashed: {e}")

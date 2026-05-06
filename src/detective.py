@@ -139,8 +139,18 @@ class Detective:
         with self.lock:
             self.tof_size = max(self.tof_size-1, 0)
             set_tof_count(self.tof_size)
-        
+
         # GC will figure out who to kick in a bit
+
+    # called by ToF on daily reset: room is forced to empty
+    def reset(self):
+        with self.scanner.lock:
+            with self.lock:
+                logger.log("RESET CALLED")
+                self.tof_size = 0
+                self.active_set.clear()
+                set_tof_count(0)
+                set_in_room([])
 
     def _gc_loop(self):
         
