@@ -41,6 +41,13 @@
             "name": "Albert",
             "sound_file": "nothing.wav",
             "share_presence": true
+        },
+        {
+            "passkey": "116541",
+            "paired_at": "2026-05-06T16:42:01.473873",
+            "name": "Gil",
+            "sound_file": "nothing.wav",
+            "share_presence": true
         }
     ]
 }
