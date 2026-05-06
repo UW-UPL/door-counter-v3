@@ -62,7 +62,13 @@
             "name": "Geet",
             "sound_file": "nothing.wav",
             "share_presence": true
+        },
+        {
+            "passkey": "236019",
+            "paired_at": "2026-05-06T17:43:42.619808",
+            "name": "Manas",
+            "sound_file": "nothing.wav",
+            "share_presence": true
         }
-        
     ]
 }
