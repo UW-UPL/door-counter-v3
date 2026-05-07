@@ -364,6 +364,6 @@ class Detective:
                 for device in self.active_set:
                     logger.log(f"   in-room: {device.name}")
 
-                set_in_room([device.name for device in self.active_set])
+                set_in_room([device.name for device in self.active_set if device.share_presence])
         
         
