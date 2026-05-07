@@ -3,8 +3,9 @@ import dbus
 import dbus.service
 import dbus.mainloop.glib
 from gi.repository import GLib
-from db_manager import add_pending_device
-import logger
+
+from services import logger
+from services.db_manager import add_pending_device
 
 AGENT_INTERFACE = "org.bluez.Agent1"
 AGENT_PATH = "/upl/agent"

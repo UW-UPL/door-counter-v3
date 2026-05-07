@@ -4,11 +4,9 @@ import threading
 import time
 import argparse
 
-import ble_scanner
-import bt_service
-import github_sync
-import tof_detector
-import logger
+from ble import ble_scanner, bt_service
+from services import github_sync, logger
+from tof import occupancy
 
 
 def prepare_bluetooth():
@@ -47,7 +45,7 @@ def main():
         threading.Thread(target=ble_scanner.main, args=(shutdown_event, detective_holder), name="ble_scanner", daemon=True),
         threading.Thread(target=bt_service.main, args=(shutdown_event,), name="bt_service", daemon=True),
         threading.Thread(target=github_sync.main, args=(shutdown_event,), name="github_sync", daemon=True),
-        threading.Thread(target=tof_detector.main, args=(detective_holder, shutdown_event, args), name="tof_detector", daemon=True),
+        threading.Thread(target=occupancy.main, args=(detective_holder, shutdown_event, args), name="occupancy", daemon=True),
     ]
 
     for t in threads:

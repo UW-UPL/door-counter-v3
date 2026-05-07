@@ -1,3 +1,4 @@
+# TOOL: records raw depth frames from the ToF camera to a .npz for offline replay
 import os
 import sys
 import time

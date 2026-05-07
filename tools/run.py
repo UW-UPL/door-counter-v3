@@ -1,10 +1,15 @@
+# TOOL: replays a .npz through counter and reports per-frame timing
 import argparse
 import os
+import sys
 import time
 
 import numpy as np
 
-from counter import Config, DoorwayCounter, calibrate_floor
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(_REPO_ROOT, "src"))
+
+from tof.counter import Config, DoorwayCounter, calibrate_floor
 
 
 def run(path, verbose=False):

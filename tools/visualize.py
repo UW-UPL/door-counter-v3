@@ -1,9 +1,15 @@
+# TOOL: renders a recorded .npz as an annotated MP4 with detections, tracks, and counts
 import argparse
+import os
+import sys
 
 import cv2
 import numpy as np
 
-from counter import Config, DoorwayCounter, calibrate_floor, draw_overlay
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(_REPO_ROOT, "src"))
+
+from tof.counter import Config, DoorwayCounter, calibrate_floor, draw_overlay
 
 
 def render(path, out_path, scale=3, fps=30.0):

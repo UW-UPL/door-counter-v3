@@ -4,7 +4,7 @@ COLORS = {
     "ble_scanner": "\033[96m",
     "bt_service": "\033[94m",
     "github_sync": "\033[95m",
-    "tof_detector": "\033[93m",
+    "occupancy": "\033[93m",
     "detective": "\033[92m",
     "gc": "\033[92m",
     "main": "\033[97m",

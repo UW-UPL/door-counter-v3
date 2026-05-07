@@ -3,13 +3,13 @@ from datetime import datetime, timedelta
 import numpy as np
 import time
 import heapq
-import logger
 from typing import TYPE_CHECKING
-from device import Device
-from db_manager import set_tof_count, set_in_room
-import logger
+
+from ble.device import Device
+from services import logger
+from services.db_manager import set_tof_count, set_in_room
 if TYPE_CHECKING:
-	from ble_scanner import BLEScanner
+	from ble.ble_scanner import BLEScanner
 
 #   LOCK ORDERING:
 #       scanner lock -> detective lock -> device lock
