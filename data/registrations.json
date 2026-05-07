@@ -11,56 +11,48 @@
             "passkey": "843117",
             "paired_at": "2026-05-05T13:56:37.975445",
             "name": "Ollie",
-            "sound_file": "whatever.wav",
             "share_presence": true
         },
         {
             "passkey": "624081",
             "paired_at": "2026-05-05T14:21:04.788526",
             "name": "Austin",
-            "sound_file": "whaskljdsakjld",
             "share_presence": true
         },
         {
             "passkey": "477356",
             "paired_at": "2026-05-05T14:24:47.839676",
             "name": "Matthew",
-            "sound_file": "bruh.wav",
             "share_presence": true
         },
         {
             "passkey": "819371",
             "paired_at": "2026-05-05T14:27:28.481044",
             "name": "Marko",
-            "sound_file": "bruh.wav",
             "share_presence": true
         },
         {
             "passkey": "407057",
             "paired_at": "2026-05-05T14:32:41.889640",
             "name": "Albert",
-            "sound_file": "nothing.wav",
             "share_presence": true
         },
         {
             "passkey": "116541",
             "paired_at": "2026-05-06T16:42:01.473873",
             "name": "Gil",
-            "sound_file": "nothing.wav",
             "share_presence": true
         },
         {
             "passkey": "775208",
             "paired_at": "2026-05-06T17:40:16.391232",
             "name": "Geet",
-            "sound_file": "nothing.wav",
             "share_presence": true
         },
         {
             "passkey": "236019",
             "paired_at": "2026-05-06T17:43:42.619808",
             "name": "Manas",
-            "sound_file": "nothing.wav",
             "share_presence": true
         }
     ]
