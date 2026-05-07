@@ -71,9 +71,6 @@ def main(detective_holder, shutdown_event: threading.Event, args=None):
         camera_loop.cmd_run(
             floor_path=FLOOR_PATH,
             initial=initial,
-            # count_file=COUNT_FILE,
-            # clips_dir=CLIPS_DIR,
-            audio=False,
             shutdown_event=shutdown_event,
             on_event=on_event,
             on_reset=on_reset,

@@ -37,10 +37,8 @@ def _next_reset(now):
     return target
 
 
-def cmd_run(floor_path, show=False, save_video=None, scale=3,
-            initial=0, count_file=None, clips_dir=None,
-            audio=True, shutdown_event=None, on_event=None,
-            on_reset=None):
+def cmd_run(floor_path, initial=0, shutdown_event=None,
+            on_event=None, on_reset=None):
     floor = np.load(floor_path)
     cfg = Config()
     dc = DoorwayCounter(floor, cfg)
