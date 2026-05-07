@@ -60,6 +60,12 @@
             "paired_at": "2026-05-07T16:24:36.517028",
             "name": "Mari",
             "share_presence": true
+        },
+        {
+            "passkey": "82272",
+            "paired_at": "2026-05-07T17:17:28.448269",
+            "name": "Kev",
+            "share_presence": true
         }
     ]
 }
