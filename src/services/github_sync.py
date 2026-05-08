@@ -35,7 +35,7 @@ def export_pending():
 
 
 def export_count():
-    count = get_tof_count()
+    count = max(get_tof_count(), 0)
     names = get_in_room()
 
     os.makedirs(os.path.dirname(COUNT_JSON), exist_ok=True)
