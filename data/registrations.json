@@ -72,7 +72,12 @@
             "paired_at": "2026-05-08T20:54:13.950154",
             "name": "Lucas",
             "share_presence": true
+        },
+        {
+            "passkey": "510423",
+            "paired_at": "2026-05-08T20:59:21.027807",
+            "name": "Lucas2",
+            "share_presence": true
         }
-        
     ]
 }
