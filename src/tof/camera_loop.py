@@ -38,7 +38,7 @@ def _next_reset(now):
 
 
 def cmd_run(floor_path, initial=0, shutdown_event=None,
-            on_event=None, on_reset=None):
+            on_event=None, on_reset=None, on_frame=None):
     floor = np.load(floor_path)
     cfg = Config()
     dc = DoorwayCounter(floor, cfg)
@@ -65,6 +65,11 @@ def cmd_run(floor_path, initial=0, shutdown_event=None,
             d = _grab(cam)
             if d is None:
                 continue
+            if on_frame is not None:
+                try:
+                    on_frame(d)
+                except Exception:
+                    pass
             height, dets, tracks, evs = dc.step(d)
             if evs:
                 last_event = evs[-1]

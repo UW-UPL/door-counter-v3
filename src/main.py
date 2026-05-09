@@ -5,6 +5,7 @@ import time
 import argparse
 
 from ble import ble_scanner, bt_service
+from display.live_view import LiveView
 from services import github_sync, logger
 from tof import occupancy
 
@@ -40,12 +41,14 @@ def main():
 
     shutdown_event = threading.Event()
     detective_holder = [None]
+    live_view = LiveView()
 
     threads = [
         threading.Thread(target=ble_scanner.main, args=(shutdown_event, detective_holder), name="ble_scanner", daemon=True),
         threading.Thread(target=bt_service.main, args=(shutdown_event,), name="bt_service", daemon=True),
         threading.Thread(target=github_sync.main, args=(shutdown_event,), name="github_sync", daemon=True),
-        threading.Thread(target=occupancy.main, args=(detective_holder, shutdown_event, args), name="occupancy", daemon=True),
+        threading.Thread(target=live_view.run, args=(shutdown_event,), name="display", daemon=True),
+        threading.Thread(target=occupancy.main, args=(detective_holder, shutdown_event, args, live_view.update_frame), name="occupancy", daemon=True),
     ]
 
     for t in threads:

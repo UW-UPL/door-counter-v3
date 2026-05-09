@@ -12,7 +12,7 @@ FLOOR_PATH = os.path.join(_REPO_ROOT, "data", "floor.npy")
 # CLIPS_DIR = os.path.join(_REPO_ROOT, "recordings")
 
 
-def main(detective_holder, shutdown_event: threading.Event, args=None):
+def main(detective_holder, shutdown_event: threading.Event, args=None, on_frame=None):
     while detective_holder[0] is None and not shutdown_event.is_set():
         time.sleep(0.1)
     if shutdown_event.is_set():
@@ -74,6 +74,7 @@ def main(detective_holder, shutdown_event: threading.Event, args=None):
             shutdown_event=shutdown_event,
             on_event=on_event,
             on_reset=on_reset,
+            on_frame=on_frame,
         )
     except Exception as e:
         logger.error(f"occupancy thread crashed: {e}")

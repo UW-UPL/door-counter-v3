@@ -5,6 +5,7 @@ COLORS = {
     "bt_service": "\033[94m",
     "github_sync": "\033[95m",
     "occupancy": "\033[93m",
+    "display": "\033[35m",
     "detective": "\033[92m",
     "gc": "\033[92m",
     "main": "\033[97m",
