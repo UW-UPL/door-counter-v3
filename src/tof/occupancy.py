@@ -1,3 +1,4 @@
+# Audio / clipping functionality commented out 
 import os
 import threading
 import time
@@ -13,6 +14,7 @@ FLOOR_PATH = os.path.join(_REPO_ROOT, "data", "floor.npy")
 
 
 def main(detective_holder, shutdown_event: threading.Event, args=None, on_frame=None):
+    # the busy wait loop, spin until detective shows up or shutdown
     while detective_holder[0] is None and not shutdown_event.is_set():
         time.sleep(0.1)
     if shutdown_event.is_set():
@@ -41,7 +43,8 @@ def main(detective_holder, shutdown_event: threading.Event, args=None, on_frame=
     people_count = initial
     for _ in range(initial):
         detective.enter()
-
+        # ^ if we start with 3 people in the room
+        # call the detective.enter 3 times
     def on_event(ev):
         nonlocal people_count
         if ev.direction == "entry":
@@ -57,10 +60,12 @@ def main(detective_holder, shutdown_event: threading.Event, args=None, on_frame=
             #         d = {"name": device.name, "sound_file": device.sound_file}
             #     audio_player.play_entry(d)
         else:
+            # floor at zero, it should never be negative lol
             people_count = max(0, people_count - 1)
             detective.exit()
             logger.log(f"<<< EXIT detected! Room count: {people_count}")
 
+    # RESET CONDITION
     def on_reset():
         nonlocal people_count
         people_count = 0

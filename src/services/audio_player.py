@@ -1,8 +1,8 @@
 import os
 import random
 from typing import Optional, Dict
-# import pygame
-
+# import pygame (allegedly pygame is the most robust way to play audio w python lol)
+# None of the audio features are implemented. Speakers are not hooked up to the pi
 
 class AudioPlayer:
     def __init__(self, default_sounds_dir: str = "./sounds/default",

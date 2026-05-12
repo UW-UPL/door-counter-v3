@@ -1,4 +1,11 @@
-# TOOL: replays a .npz through counter and reports per-frame timing
+'''
+TOOL: take a .npz recording and pushes every frame through
+DoorwayCounter in counter.py. Prints any count events that fire
+'''
+
+#NOTE that this is a dev tool and doesn't run the program
+#TODO: rename this to replay.py or smth
+
 import argparse
 import os
 import sys
@@ -11,9 +18,10 @@ sys.path.insert(0, os.path.join(_REPO_ROOT, "src"))
 
 from tof.counter import Config, DoorwayCounter, calibrate_floor
 
-
 def run(path, verbose=False):
+    # load the .npz  result is a NpzFile object that acts like a dict
     data = np.load(path)
+    # pull frames array
     frames = data["frames"]
     ts = data.get("timestamps")
     print(f"Loaded {os.path.basename(path)}: {frames.shape[0]} frames "
@@ -21,6 +29,7 @@ def run(path, verbose=False):
 
     cfg = Config()
     t0 = time.perf_counter()
+    # why are we calibrating floor here again?
     floor = calibrate_floor(frames, cfg)
     t_cal = time.perf_counter() - t0
     print(f"Floor calibration: {t_cal*1000:.0f} ms "

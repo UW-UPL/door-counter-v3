@@ -1,4 +1,8 @@
-# TOOL: records raw depth frames from the ToF camera to a .npz for offline replay
+'''
+TOOL: open the camera nad save every depth frame to a 
+list, write the list to a .npz file when the user hits 
+These files are what run.py and visualize.py replay
+'''
 import os
 import sys
 import time
@@ -7,8 +11,12 @@ import threading
 import numpy as np
 
 import ArducamDepthCamera as ac
-
-
+'''
+This script is run manually and does not auto-clip entries/exits
+Although that functionality should probably be reimplemented
+bc it allows for "replay debugging" which was critical for
+algo development in counter.py 
+'''
 MAX_DISTANCE = 4000
 RECORDING_DIR = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
@@ -32,7 +40,7 @@ def main():
         return
 
     cam.setControl(ac.Control.RANGE, MAX_DISTANCE)
-
+    # create the recording dir if doesn't exist
     os.makedirs(RECORDING_DIR, exist_ok=True)
 
     input("Press Enter to START recording...")
@@ -52,6 +60,7 @@ def main():
 
     threading.Thread(target=wait_for_stop, daemon=True).start()
 
+    # the recording loop and saving 
     try:
         while not stop.is_set():
             frame = cam.requestFrame(2000)
@@ -60,17 +69,19 @@ def main():
                 cam.releaseFrame(frame)
                 frames.append(depth_buf.copy())
                 timestamps.append(time.monotonic())
-                wall_timestamps.append(time.time())
+                wall_timestamps.append(time.time()) #Unix epoch
     except KeyboardInterrupt:
         pass
     finally:
         cam.stop()
         cam.close()
 
+    # defensive check
     if not frames:
         print("No frames captured.")
         return
 
+    # naming schema
     ts = time.strftime("%Y%m%d_%H%M%S")
     name = f"{ts}_{label}.npz" if label else f"{ts}.npz"
     path = os.path.join(RECORDING_DIR, name)
