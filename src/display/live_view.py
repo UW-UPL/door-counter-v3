@@ -1,5 +1,6 @@
 import os
 import threading
+import time
 
 import cv2
 import numpy as np
@@ -14,6 +15,14 @@ FLOOR_PATH = os.path.join(_REPO_ROOT, "data", "floor.npy")
 H_CLIP_MM = 3000.0
 DEPTH_MAX_MM = 4000.0
 WAIT_TIMEOUT_S = 0.1
+
+# how often we re-init the panel as a watchdog. ST7789 can drift after days of SPI
+# traffic, this resyncs RAMWR + reloads init regs. costs ~250 ms once per hour, one
+# dropped frame, counter thread is unaffected
+REINIT_INTERVAL_S = 3600.0
+# if a display push raises we want to recover, but not spin retrying flat out if the
+# panel is genuinely dead. small backoff between recovery attempts
+REINIT_BACKOFF_S = 1.0
 
 
 def _bgr_to_rgb565(bgr: np.ndarray) -> bytes:
@@ -78,10 +87,40 @@ class LiveView:
         logger.log("Live view started")
 
         first_frame_logged = False
+        # hourly watchdog clock. anchored to whatever time the display thread came up
+        last_reinit_at = time.monotonic()
+        # set when a display push raises, next loop iteration will try to recover
+        # the panel before rendering again
+        needs_reinit = False
         try:
             while not shutdown_event.is_set():
                 self._new_frame.wait(timeout=WAIT_TIMEOUT_S)
                 self._new_frame.clear()
+
+                # hourly preventative re-init. cheap insurance against drift, the
+                # counter thread doesn't care if we block the SPI bus for 250 ms
+                now = time.monotonic()
+                if not needs_reinit and now - last_reinit_at >= REINIT_INTERVAL_S:
+                    try:
+                        self._lcd.reinit()
+                        last_reinit_at = now
+                    except Exception as e:
+                        logger.error(f"periodic display reinit failed: {e}")
+                        needs_reinit = True
+
+                # recovery path. previous push blew up, try to bring the panel back
+                # before we attempt another frame. if reinit itself fails, sleep a
+                # beat so we dont spin if the hardware is genuinely gone
+                if needs_reinit:
+                    try:
+                        self._lcd.reinit()
+                        needs_reinit = False
+                        last_reinit_at = now
+                        logger.log("display recovered after error")
+                    except Exception as e:
+                        logger.error(f"display reinit failed: {e}")
+                        time.sleep(REINIT_BACKOFF_S)
+                        continue
 
                 with self._lock:
                     latest_id = self._latest_id
@@ -95,7 +134,10 @@ class LiveView:
                             logger.log(f"first frame rendered (shape={d.shape})")
                             first_frame_logged = True
                     except Exception as e:
+                        # panel might now be desynced (partial RAMWR write, glitched
+                        # cmd byte, etc). flag for recovery on next loop iteration
                         logger.error(f"display push failed: {e}")
+                        needs_reinit = True
         finally:
             try:
                 self._lcd.close()

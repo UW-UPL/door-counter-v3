@@ -7,6 +7,7 @@ import argparse
 from ble import ble_scanner, bt_service
 from display.live_view import LiveView
 from services import github_sync, logger
+from services.db_manager import get_tof_count
 from tof import occupancy
 
 
@@ -33,9 +34,16 @@ def main():
     parser = argparse.ArgumentParser(description="UPL Door Counter")
     parser.add_argument("--no-audio", action="store_true",
                         help="Disable sound playback on entry")
-    parser.add_argument("--initial-count", type=int, default=0,
-                        help="Initial people count (default: 0)")
+    parser.add_argument("--initial-count", type=int, default=None,
+                        help="Initial people count (default: restore from saved count)")
     args = parser.parse_args()
+
+    # restore saved count
+    if args.initial_count is None:
+        args.initial_count = get_tof_count()
+        logger.log(f"Restored saved count: {args.initial_count}")
+    else:
+        logger.log(f"Using --initial-count override: {args.initial_count}")
 
     prepare_bluetooth()
 

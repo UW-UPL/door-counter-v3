@@ -13,7 +13,9 @@ PIN_BL = 18
 
 SPI_BUS = 0
 SPI_DEVICE = 0
-SPI_HZ = 40_000_000
+# backed off from 40 MHz, panel was glitching after long runs.
+# 24 MHz is the safe headroom most ref drivers use for this ST7789V over dupont wiring
+SPI_HZ = 24_000_000
 
 
 class ST7789:
@@ -126,6 +128,12 @@ class ST7789:
 
     def backlight(self, on: bool):
         GPIO.output(PIN_BL, 1 if on else 0)
+
+    # full panel re-sync. used by live_view as an hourly watchdog
+    # and after any SPI write that raised, to recover from a desynced RAMWR pointer
+    def reinit(self):
+        self._reset()
+        self._init_panel()
 
     def close(self):
         try:
