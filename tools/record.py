@@ -1,7 +1,7 @@
 '''
 TOOL: open the camera nad save every depth frame to a 
 list, write the list to a .npz file when the user hits 
-These files are what run.py and visualize.py replay
+These files are what replay.py and visualize.py replay
 '''
 import os
 import sys

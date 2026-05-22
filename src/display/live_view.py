@@ -1,3 +1,4 @@
+# LCD application code that sits on st7789.py
 import os
 import threading
 import time
@@ -18,7 +19,7 @@ WAIT_TIMEOUT_S = 0.1
 
 # how often we re-init the panel as a watchdog. ST7789 can drift after days of SPI
 # traffic, this resyncs RAMWR + reloads init regs. costs ~250 ms once per hour, one
-# dropped frame, counter thread is unaffected
+# dropped frame, counter thread should be unaffected
 REINIT_INTERVAL_S = 3600.0
 # if a display push raises we want to recover, but not spin retrying flat out if the
 # panel is genuinely dead. small backoff between recovery attempts
@@ -35,10 +36,15 @@ def _bgr_to_rgb565(bgr: np.ndarray) -> bytes:
 
 def _render(depth: np.ndarray, floor: np.ndarray) -> bytes:
     d = depth.astype(np.float32)
+    # same validity rule as counter.py
     valid = (d > 0) & (d <= DEPTH_MAX_MM)
+    # again height = floor - depth
     height = np.where(valid, floor - d, 0.0)
+    # scale [0, 3000] -> [0, 255] 
     height = np.clip(height, 0.0, H_CLIP_MM)
+    # map grayscale heights to BGR colors 
     vis = (height * (255.0 / H_CLIP_MM)).astype(np.uint8)
+    # upscale from (180,240) to (240, 320) to fill the LCD
     bgr = cv2.applyColorMap(vis, cv2.COLORMAP_JET)
     bgr = cv2.resize(bgr, (WIDTH, HEIGHT), interpolation=cv2.INTER_NEAREST)
     return _bgr_to_rgb565(bgr)
@@ -47,14 +53,15 @@ def _render(depth: np.ndarray, floor: np.ndarray) -> bytes:
 class LiveView:
     def __init__(self, floor_path: str = FLOOR_PATH):
         self._floor_path = floor_path
-        self._floor = None
-        self._lcd = None
-        self._latest = None
+        self._floor = None #numpy array
+        self._lcd = None #ST7789 instance
+        self._latest = None #most recent depth frame
         self._latest_id = 0
-        self._last_render_id = -1
+        self._last_render_id = -1 #what we last actually rendered
         self._lock = threading.Lock()
-        self._new_frame = threading.Event()
+        self._new_frame = threading.Event() #signal that a frame is ready
 
+    # Called by the producer thread (camera_loop) when new frame arrives
     def update_frame(self, depth: np.ndarray):
         try:
             with self._lock:
@@ -64,7 +71,19 @@ class LiveView:
         except Exception:
             pass
 
+    '''
+    The producer thread (camera_loop) gets depth frame around ~30 
+    times per second and pushes it via live_view.update_frame(depth)
+    The display thread (LiveView.run, see below) it renders frames to the
+    LCD as fast as it can, which might be slower than the producer.
+    The consumer will always render the Latest frame not every frame
+    so it might drop intermediate frames. IMO latency matters more here
+    than completeness. This is done through a single shared "mailbox"
+    called self._latest which the producer overwrites and consumer reads
+    '''
+
     def run(self, shutdown_event: threading.Event):
+        # early exits: 
         if not os.path.exists(self._floor_path):
             logger.error(f"floor reference missing: {self._floor_path} -- live view disabled")
             return
@@ -112,6 +131,7 @@ class LiveView:
                 # before we attempt another frame. if reinit itself fails, sleep a
                 # beat so we dont spin if the hardware is genuinely gone
                 if needs_reinit:
+                    # recovery path
                     try:
                         self._lcd.reinit()
                         needs_reinit = False
@@ -126,6 +146,7 @@ class LiveView:
                     latest_id = self._latest_id
                     d = self._latest
 
+                # only render if we have a frame AND it changed since last rendered
                 if d is not None and latest_id != self._last_render_id:
                     try:
                         self._lcd.display(_render(d, self._floor))

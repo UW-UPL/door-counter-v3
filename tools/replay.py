@@ -3,9 +3,6 @@ TOOL: take a .npz recording and pushes every frame through
 DoorwayCounter in counter.py. Prints any count events that fire
 '''
 
-#NOTE that this is a dev tool and doesn't run the program
-#TODO: rename this to replay.py or smth
-
 import argparse
 import os
 import sys

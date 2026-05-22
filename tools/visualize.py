@@ -1,5 +1,5 @@
 '''
-TOOL: takes the same input as run.py (a .npz recording) but instead
+TOOL: takes the same input as replay.py (a .npz recording) but instead
 of printing events it renders an mp4 w the height map colored, 
 zone lines drawn, detections / tracks overlaid to better viz the algo.
 '''
