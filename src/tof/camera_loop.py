@@ -49,7 +49,7 @@ def _next_reset(now):
 
 
 def cmd_run(floor_path, initial=0, shutdown_event=None,
-            on_event=None, on_reset=None, on_frame=None):
+            on_event=None, on_reset=None, on_frame=None, recorder=None):
     # load floor reference array from the .npy
     floor = np.load(floor_path)
     cfg = Config() # default cfg (all dataacalss fields from counter.py)
@@ -66,6 +66,7 @@ def cmd_run(floor_path, initial=0, shutdown_event=None,
 
     last_event = None
     pending_ids = set()
+    clip_started = set()
     frame_count = 0
     t0 = time.monotonic()
     last_print = t0
@@ -86,6 +87,11 @@ def cmd_run(floor_path, initial=0, shutdown_event=None,
                     on_frame(d)
                 except Exception:
                     pass
+            if recorder is not None:
+                try:
+                    recorder.on_frame(d)
+                except Exception:
+                    pass
 
             # call into counter.py, hands depth in and gets back
             # heightmap, head detections, active tracks and count events.
@@ -93,6 +99,8 @@ def cmd_run(floor_path, initial=0, shutdown_event=None,
             if evs:
                 last_event = evs[-1]
             for ev in evs:
+                if recorder is not None:
+                    recorder.trigger(f"{ev.direction}_track{ev.track_id}")
                 if on_event is not None:
                     on_event(ev)
                     continue
@@ -102,17 +110,27 @@ def cmd_run(floor_path, initial=0, shutdown_event=None,
                       f"occupancy={occupancy()}  "
                       f"(entries={dc.totals[0]} exits={dc.totals[1]})")
 
+            # start a clip the moment a track is confirmed
+            if recorder is not None:
+                for t in dc.tracker.tracks:
+                    if t.confirmed and t.track_id not in clip_started:
+                        clip_started.add(t.track_id)
+                        recorder.trigger(f"track{t.track_id}")
+
             current_ids = {t.track_id for t in dc.tracker.tracks} #Alive track IDS
             incomplete_ids = pending_ids - current_ids #Dead track IDs
             pending_ids = {
                 t.track_id for t in dc.tracker.tracks
                 if t.confirmed and not t.counted
             }
+            clip_started &= current_ids
             # log every incomplete track
             for tid in incomplete_ids:
                 ts = time.monotonic() - t0
                 print(f"[{ts:6.2f}s] INCOMPLETE track#{tid}  "
                       f"(confirmed head, no entry/exit)")
+                if recorder is not None:
+                    recorder.trigger(f"incomplete_track{tid}")
 
             now_dt = datetime.now()
             if now_dt >= reset_at:

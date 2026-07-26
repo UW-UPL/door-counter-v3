@@ -6,11 +6,12 @@ import time
 from services import logger
 # from services.audio_player import AudioPlayer
 from tof import camera_loop
+from tof.clips import ClipRecorder
 
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 FLOOR_PATH = os.path.join(_REPO_ROOT, "data", "floor.npy")
 # COUNT_FILE = os.path.join(_REPO_ROOT, "count.txt")
-# CLIPS_DIR = os.path.join(_REPO_ROOT, "recordings")
+CLIPS_DIR = os.path.join(_REPO_ROOT, "recordings", "clips")
 
 
 def main(detective_holder, shutdown_event: threading.Event, args=None, on_frame=None):
@@ -72,6 +73,13 @@ def main(detective_holder, shutdown_event: threading.Event, args=None, on_frame=
         detective.reset()
         logger.log("=== Daily reset! Room count: 0")
 
+    # clip recorder keeps the last 30 detections on disk (gitignored)
+    recorder = None
+    try:
+        recorder = ClipRecorder(CLIPS_DIR)
+    except Exception as e:
+        logger.error(f"clip recorder init failed: {e}")
+
     try:
         camera_loop.cmd_run(
             floor_path=FLOOR_PATH,
@@ -80,6 +88,7 @@ def main(detective_holder, shutdown_event: threading.Event, args=None, on_frame=
             on_event=on_event,
             on_reset=on_reset,
             on_frame=on_frame,
+            recorder=recorder,
         )
     except Exception as e:
         logger.error(f"occupancy thread crashed: {e}")

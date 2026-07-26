@@ -8,6 +8,7 @@ COLORS = {
     "display": "\033[35m",
     "detective": "\033[92m",
     "gc": "\033[92m",
+    "clip_writer": "\033[90m",
     "main": "\033[97m",
 }
 
@@ -19,7 +20,7 @@ DIM = "\033[2m"
 
 def _get_prefix():
     name = threading.current_thread().name
-    color = COLORS[name]
+    color = COLORS.get(name, "\033[97m")
     return f"{color}[{name}]{RESET}"
 
 
