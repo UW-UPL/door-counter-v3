@@ -96,6 +96,8 @@ One-time setup, all through git:
 
 4. A coordinator merges it and the Pi picks you up within 20 seconds. After that you show up whenever your phone is in the lab with Bluetooth on.
 
+Alongside the PR flow above is a nice-to-have API endpoint that can do steps 2 and 3 for you, see [Contributing](#contributing).
+
 ### How the pairing actually works
 
 <details>
@@ -107,13 +109,13 @@ The Pi runs a custom BlueZ agent on `org.bluez.Agent1` registered with `DisplayY
 2. The agent accepts the pairing and waits ~10 seconds for the key exchange to finish. This step is the whole point: completing the exchange is what reveals your **Identity MAC**, since the address your phone normally advertises is a rotating random one.
 3. Then it disconnects. We never use the Bluetooth connection for anything, we only wanted the MAC for passive scanning. Any service access request is flat-out rejected.
 
-If a registration PR referencing your passkey lands within 10 minutes, the MAC is promoted to the tracked set. Otherwise the pending entry expires and the device is forgotten.
+If a registration PR referencing your passkey lands within 10 minutes, the MAC is promoted to the tracked set. Otherwise the entry ages out of `pending.json` and is never promoted.
 
 </details>
 
 ### Privacy
 
-- Opt-in only. If you're not in `registrations.json`, the Pi sees a rotating random MAC and forgets it.
+- Opt-in only. The Pi only learns your Identity MAC if you pair with it, and only acts on it if you're in `registrations.json`.
 - `share_presence: false` keeps you in the count but never in the names list.
 - The camera is a depth sensor, not an RGB camera. It sees the height of the doorway 30 times a second. It cannot see faces, clothes, or skin. It can sense your intentions though so keep that in mind...
 - Everything the system publishes flows through this public repo, so what you can read here is exactly what gets stored.
@@ -129,8 +131,8 @@ src/
   display/     ST7789 driver + live heightmap renderer
 tools/         calibrate / record / replay / visualize
 hardware/      STL for mount v3
-frontend/      SvelteKit pairing UI (not deployed yet)
-netlify/       functions that will turn pairings into PRs, someday
+frontend/      SvelteKit demo wrapping the netlify function endpoints (not deployed)
+netlify/       2 functions: read pending.json, open registration PRs (deployed)
 sounds/        entry jingles for speakers that are not hooked up yet
 data/          count.json, pending.json, registrations.json, sqlite db
 ```
@@ -139,7 +141,10 @@ data/          count.json, pending.json, registrations.json, sqlite db
 
 UPL members, feel free to contribute. Rough order of things that might be fun to contribute:
 
-1. Set up a web UI for pairing, so nobody has to hand-write a PR. The SvelteKit skeleton in `frontend/` is a starting point.
+1. Finish the pairing web UI as an alternative to hand-writing PRs:
+   - [`netlify/functions/`](./netlify/) holds two endpoints, deployed at `https://gregarious-cocada-36aa36.netlify.app/.netlify/functions/`: GET `pending-devices` and POST `registrations`.
+   - [`frontend/`](./frontend/) is a reference demo that calls both endpoints.
+   - If you want to redeploy `netlify/` to your own Netlify site, set the environment variables: `GITHUB_BOT_TOKEN`, `PUBLIC_REPO_OWNER`, and `PUBLIC_REPO_NAME`.
 2. Replace GitHub-as-database with something real. Current rec: a small hosted Postgres (Supabase free tier), with the Pi POSTing over HTTPS so it stays outbound-only.
 3. Hook up the speakers. The per-person entry jingle system is fully designed, `sound_file` is already in the schema, and there is exactly one wav sitting in `sounds/custom/` waiting for its moment.
 4. Dim the LCD when nobody is around.
