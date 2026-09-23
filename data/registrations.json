@@ -1,77 +1,84 @@
 {
-    "registrations": [
-        {
-            "passkey": "279080",
-            "paired_at": "2026-05-05T12:39:17.066633",
-            "name": "Nick",
-            "sound_file": "test.wav",
-            "share_presence": true
-        },
-        {
-            "passkey": "843117",
-            "paired_at": "2026-05-05T13:56:37.975445",
-            "name": "Ollie",
-            "share_presence": true
-        },
-        {
-            "passkey": "624081",
-            "paired_at": "2026-05-05T14:21:04.788526",
-            "name": "Austin",
-            "share_presence": true
-        },
-        {
-            "passkey": "477356",
-            "paired_at": "2026-05-05T14:24:47.839676",
-            "name": "Matthew",
-            "share_presence": true
-        },
-        {
-            "passkey": "407057",
-            "paired_at": "2026-05-05T14:32:41.889640",
-            "name": "Albert",
-            "share_presence": true
-        },
-        {
-            "passkey": "116541",
-            "paired_at": "2026-05-06T16:42:01.473873",
-            "name": "Gil",
-            "share_presence": true
-        },
-        {
-            "passkey": "775208",
-            "paired_at": "2026-05-06T17:40:16.391232",
-            "name": "Geet",
-            "share_presence": true
-        },
-        {
-            "passkey": "236019",
-            "paired_at": "2026-05-06T17:43:42.619808",
-            "name": "Manas",
-            "share_presence": true
-        },
-        {
-            "passkey": "245130",
-            "paired_at": "2026-05-07T16:24:36.517028",
-            "name": "Mari",
-            "share_presence": true
-        },
-        {
-            "passkey": "82272",
-            "paired_at": "2026-05-07T17:17:28.448269",
-            "name": "Kev",
-            "share_presence": true
-        },
-        {
-            "passkey": "510423",
-            "paired_at": "2026-05-08T20:59:21.027807",
-            "name": "Lucas",
-            "share_presence": true
-        },
-        {
-            "passkey": "682839",
-            "paired_at": "2026-09-04T14:02:37.809825",
-            "name": "Marko",
-            "share_presence": true
-        }
-    ]
+  "registrations": [
+    {
+      "passkey": "279080",
+      "paired_at": "2026-05-05T12:39:17.066633",
+      "name": "Nick",
+      "sound_file": "test.wav",
+      "share_presence": true
+    },
+    {
+      "passkey": "843117",
+      "paired_at": "2026-05-05T13:56:37.975445",
+      "name": "Ollie",
+      "share_presence": true
+    },
+    {
+      "passkey": "624081",
+      "paired_at": "2026-05-05T14:21:04.788526",
+      "name": "Austin",
+      "share_presence": true
+    },
+    {
+      "passkey": "477356",
+      "paired_at": "2026-05-05T14:24:47.839676",
+      "name": "Matthew",
+      "share_presence": true
+    },
+    {
+      "passkey": "407057",
+      "paired_at": "2026-05-05T14:32:41.889640",
+      "name": "Albert",
+      "share_presence": true
+    },
+    {
+      "passkey": "116541",
+      "paired_at": "2026-05-06T16:42:01.473873",
+      "name": "Gil",
+      "share_presence": true
+    },
+    {
+      "passkey": "775208",
+      "paired_at": "2026-05-06T17:40:16.391232",
+      "name": "Geet",
+      "share_presence": true
+    },
+    {
+      "passkey": "236019",
+      "paired_at": "2026-05-06T17:43:42.619808",
+      "name": "Manas",
+      "share_presence": true
+    },
+    {
+      "passkey": "245130",
+      "paired_at": "2026-05-07T16:24:36.517028",
+      "name": "Mari",
+      "share_presence": true
+    },
+    {
+      "passkey": "82272",
+      "paired_at": "2026-05-07T17:17:28.448269",
+      "name": "Kev",
+      "share_presence": true
+    },
+    {
+      "passkey": "510423",
+      "paired_at": "2026-05-08T20:59:21.027807",
+      "name": "Lucas",
+      "share_presence": true
+    },
+    {
+      "passkey": "682839",
+      "paired_at": "2026-09-04T14:02:37.809825",
+      "name": "Marko",
+      "share_presence": true
+    },
+    {
+      "passkey": "553686",
+      "paired_at": "2026-09-23T13:17:59.261928",
+      "name": "test",
+      "sound_file": "",
+      "share_presence": true
+    }
+  ]
 }
