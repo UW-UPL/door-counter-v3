@@ -24,6 +24,9 @@ REGISTRATIONS = "./data/registrations.json"
 SYNC_INTERVAL = 20  # seconds
 PENDING_WINDOW = 10  # minutes
 
+RECOVERY_THRESHOLD = 3
+_consecutive_failures = 0
+
 def export_pending():
     pending = get_pending_devices(minutes=PENDING_WINDOW)
 
@@ -128,11 +131,36 @@ def git_push():
         return False
 
 
+def git_recover():
+    logger.error("Git sync wedged; attempting auto-recovery")
+    subprocess.run(["git", "rebase", "--abort"], capture_output=True, timeout=15)
+    subprocess.run(["git", "merge", "--abort"], capture_output=True, timeout=15)
+    for lock in (".git/index.lock", ".git/objects/maintenance.lock"):
+        try:
+            os.remove(lock)
+        except OSError:
+            pass
+    fetched = subprocess.run(["git", "fetch", "origin", "main"],
+                             capture_output=True, text=True, timeout=60)
+    if fetched.returncode != 0:
+        logger.error(f"Recovery fetch failed: {fetched.stderr.strip()}")
+        return False
+    reset = subprocess.run(["git", "reset", "--hard", "origin/main"],
+                           capture_output=True, text=True, timeout=30)
+    if reset.returncode != 0:
+        logger.error(f"Recovery reset failed: {reset.stderr.strip()}")
+        return False
+    logger.log("Git sync auto-recovered to origin/main")
+    return True
+
+
 def sync_cycle():
+    global _consecutive_failures
     logger.debug(f"Starting sync cycle...")
 
     # Pull latest (gets new registrations)
-    if git_pull():
+    pulled = git_pull()
+    if pulled:
         # Process any new registrations
         processed = process_registrations()
         if processed:
@@ -147,7 +175,17 @@ def sync_cycle():
     logger.debug(f"Exported tof count: {tof}")
 
     # Push updates
-    git_push()
+    pushed = git_push()
+
+    if pulled and pushed:
+        _consecutive_failures = 0
+        return
+
+    _consecutive_failures += 1
+    logger.error(f"Sync degraded ({_consecutive_failures} consecutive failure(s))")
+    if _consecutive_failures >= RECOVERY_THRESHOLD:
+        if git_recover():
+            _consecutive_failures = 0
 
 
 def main(shutdown_event: threading.Event):
